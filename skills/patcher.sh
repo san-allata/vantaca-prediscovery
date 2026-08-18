@@ -26,8 +26,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Apply patches using reduce
-jq --slurpfile answers "$ANSWERS" '. as $template | reduce $answers[0][] as $answer ($template; .questions[$answer.question_index] |= . + $answer)' "$TEMPLATE" > "$OUTPUT"
+# Apply patches using reduce (exclude question_index from being added to template)
+jq --slurpfile answers "$ANSWERS" '. as $template | reduce $answers[0][] as $answer ($template; .questions[$answer.question_index] |= . + ($answer | del(.question_index)))' "$TEMPLATE" > "$OUTPUT"
 
 if [ $? -eq 0 ]; then
     echo "✓ Patching complete: $OUTPUT"
