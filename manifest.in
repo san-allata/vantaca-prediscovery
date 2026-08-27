@@ -1,0 +1,36 @@
+# MANIFEST.in - Specifies what files to include in source distribution
+
+include README.md
+include LICENSE
+include requirements.txt
+include requirements-dev.txt
+include pyproject.toml
+include setup.cfg
+include .pre-commit-config.yaml
+
+# Include all documentation
+recursive-include docs *.rst *.py *.md
+
+# Include all test files
+recursive-include tests *.py *.xlsx *.docx *.json
+
+# Include all source files
+recursive-include src *.py *.json *.yaml
+
+# Include example files and data
+recursive-include examples *.py *.xlsx *.docx *.md
+
+# Include skill and persona definitions
+recursive-include skills *.md *.json
+recursive-include personas *.md *.json
+
+# Exclude unwanted files
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store
+global-exclude .git*
+global-exclude *.egg-info
+global-exclude .pytest_cache
+global-exclude .mypy_cache
+global-exclude .coverage
+global-exclude htmlcov

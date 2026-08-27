@@ -1,3 +1,67 @@
+Metadata-Version: 2.4
+Name: vantaca-prediscovery
+Version: 1.0.0
+Summary: Extract discovery assessment answers and populate Excel rubrics
+Home-page: https://github.com/san-allata/vantaca-prediscovery
+Author: Allata
+Author-email: Allata <dev@allata.com>
+License: Proprietary
+Project-URL: Bug Tracker, https://github.com/san-allata/vantaca-prediscovery/issues
+Project-URL: Documentation, https://github.com/san-allata/vantaca-prediscovery#readme
+Project-URL: Source Code, https://github.com/san-allata/vantaca-prediscovery
+Keywords: excel,assessment,discovery,automation,document-processing,data-extraction
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Business and Finance
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Office/Business
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Utilities
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: openpyxl>=3.10.0
+Requires-Dist: python-docx>=0.8.11
+Requires-Dist: PyPDF2>=3.0.0
+Requires-Dist: pandas>=1.5.0
+Requires-Dist: Pydantic>=2.0.0
+Requires-Dist: python-json-logger>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: click>=8.1.0
+Requires-Dist: tqdm>=4.65.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: pytest-xdist>=3.3.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.11.0; extra == "dev"
+Requires-Dist: black>=23.7.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.4.0; extra == "dev"
+Requires-Dist: pylint>=2.17.0; extra == "dev"
+Requires-Dist: sphinx>=7.1.0; extra == "dev"
+Requires-Dist: sphinx-rtd-theme>=1.3.0; extra == "dev"
+Requires-Dist: pre-commit>=3.3.0; extra == "dev"
+Requires-Dist: ipython>=8.14.0; extra == "dev"
+Requires-Dist: ipdb>=0.13.0; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx>=7.1.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme>=1.3.0; extra == "docs"
+Requires-Dist: sphinx-autodoc-typehints>=1.23.0; extra == "docs"
+Provides-Extra: pdf
+Requires-Dist: PyPDF2>=3.0.0; extra == "pdf"
+Requires-Dist: pdfplumber>=0.9.0; extra == "pdf"
+Dynamic: author
+Dynamic: home-page
+Dynamic: requires-python
+
 # Vantaca Pre-Discovery: Excel Assessment Generator
 
 > Extract discovery assessment answers from source documents and populate Excel

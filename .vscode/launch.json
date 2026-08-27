@@ -1,0 +1,32 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Excel Extractor",
+            "type": "debugpy",
+            "cwd": "${workspaceFolder}",
+            "request": "launch",
+            "justMyCode": true,
+            "console": "integratedTerminal",
+            "program": "src/vantaca_prediscovery/utils/excel_extractor.py",
+            "args": [
+                "../MasterRubricTemplateWithAssociaAnswers.xlsx",
+                "--sheet",
+                "Assessment",
+                "--skip-rows",
+                "3",
+            ]
+        }
+    ]
+}
