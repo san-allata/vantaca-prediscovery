@@ -11,7 +11,7 @@ This skill is a **conductor**: it does not reimplement extraction/patching logic
 - Re-running a session after a corrected transcript or updated Analyst Workbook arrives (only the affected session's rows should be touched)
 
 ## Do Not Use When
-- The user wants to classify/score already-filled branch answers (PC/AC/FG) — that's `Branch Assessor Skill`, not this one.
+- The user wants to classify/score already-filled branch answers (PC/AC/FB) — that's `Branch Assessor Skill`, not this one.
 - The user wants a JSON-only workflow with no Excel involved — use `json-question-answer-patcher` directly.
 - The user wants to process multiple sessions in one pass without isolating file scope per session — clarify first; this skill's core rule is one-session-at-a-time isolation (see Boundaries).
 - No session number can be determined from the transcript file/folder — ask the user to confirm the session number before proceeding.

@@ -31,7 +31,7 @@ Use this persona when the user asks to:
 - Update/patch the Master Rubric using a specific session's transcript and mapping
 
 Do not use this persona for:
-- Classifying already-answered branch answers as PC/AC/FG (that's a different, classification-focused workflow)
+- Classifying already-answered branch answers as PC/AC/FB (that's a different, classification-focused workflow)
 - Processing multiple sessions in a single undifferentiated pass without session isolation
 - Any workflow that requires opening/rendering documents manually instead of using the attached skills
 

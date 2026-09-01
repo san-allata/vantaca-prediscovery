@@ -11,7 +11,7 @@ Design notes
   the real headers carry em-dash suffixes and future revisions may shift columns.
 * Cap # is text in some rows and float in others across this rubric family, so it is
   always normalised to a string.
-* Columns M/N/O (AC#/FG#/PC#) are live formulas keyed on the Classification column.
+* Columns M/N/O (AC#/FB#/PC#) are live formulas keyed on the Classification column.
   They are deliberately NOT exported -- they are derived, not source data.
 * Rows whose Discovery Question begins with "TBD" are real rows with no authored
   question; they are exported with is_placeholder_question=true so downstream code
@@ -37,12 +37,12 @@ HEADER_PATTERNS = {
     "cap_number": "Cap #",
     "capability": "Capability",          # matched after TownSq Capability is excluded
     "dimension": "Dimension",
-    "priority": "Priority",              # matched after FG Priority is excluded
+    "priority": "Priority",              # matched after FB Priority is excluded
     "discovery_question": "Discovery Question",
     "branch_answer": "Branch Answer",
     "townsq_capability": "TownSq Capability",
     "classification": "Classification",
-    "fg_priority": "FG Priority",
+    "fg_priority": "FB Priority",
     "assessor_notes": "Assessor Notes",
     "qid": "QID",
     "uid": "UID",
@@ -68,7 +68,7 @@ def resolve_columns(ws):
 
     resolved = {}
     # Longest / most specific patterns first so "TownSq Capability" wins over
-    # "Capability" and "FG Priority" wins over "Priority".
+    # "Capability" and "FB Priority" wins over "Priority".
     order = sorted(HEADER_PATTERNS.items(), key=lambda kv: -len(kv[1]))
     taken = set()
     for field, pattern in order:
@@ -152,7 +152,7 @@ def export(path, out_path):
             "exported_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "column_map": {f: openpyxl.utils.get_column_letter(c) for f, c in cols.items()},
             "excluded_columns": {
-                "AC#/FG#/PC#": "live formulas derived from classification -- regenerated in Excel, not source data"
+                "AC#/FB#/PC#": "live formulas derived from classification -- regenerated in Excel, not source data"
             },
         },
         "key": {
@@ -160,7 +160,7 @@ def export(path, out_path):
             "note": "uid is the permanent key and survives renumbering; qid (Dom.Cap.Seq) and source_row do not.",
         },
         "enums": {
-            "classification": ["PC", "AC", "FG", "NA", None],
+            "classification": ["PC", "AC", "FB", "NA", None],
             "priority": ["P0", "P1", "P2", "P3"],
         },
         "editable_fields": [

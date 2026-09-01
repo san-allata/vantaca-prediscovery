@@ -56,13 +56,13 @@ EDITABLE = {
     "branch_answer": "Branch Answer",
     "townsq_capability": "TownSq Capability",
     "classification": "Classification",
-    "fg_priority": "FG Priority",
+    "fg_priority": "FB Priority",
     "assessor_notes": "Assessor Notes",
 }
 QUESTION_HEADER = "Discovery Question"
 UID_HEADER = "UID"
 
-VALID_CLASSIFICATION = {"PC", "AC", "FG", "NA"}
+VALID_CLASSIFICATION = {"PC", "AC", "FB", "NA"}
 VALID_PRIORITY = {"P0", "P1", "P2", "P3"}
 
 
@@ -91,7 +91,7 @@ def resolve_columns(ws):
 
     resolved, taken = {}, set()
     # Most specific patterns first: "TownSq Capability" before "Capability",
-    # "FG Priority" before "Priority".
+    # "FB Priority" before "Priority".
     for field, pattern in sorted(wanted.items(), key=lambda kv: -len(kv[1])):
         match = next((c for c, h in headers.items() if pattern in h and c not in taken), None)
         if match is None:
@@ -122,8 +122,8 @@ def validate(questions):
         if fgp is not None and str(fgp).upper() not in VALID_PRIORITY:
             problems.append(f"{uid}: fg_priority {fgp!r} not in {sorted(VALID_PRIORITY)}")
 
-        if fgp is not None and (cls is None or str(cls).upper() != "FG"):
-            problems.append(f"{uid}: fg_priority set but classification is not FG")
+        if fgp is not None and (cls is None or str(cls).upper() != "FB"):
+            problems.append(f"{uid}: fg_priority set but classification is not FB")
     return problems
 
 

@@ -213,7 +213,7 @@ Re-verify every row with numbers, dates, dollar amounts, or proper names, plus a
 | **H** | **`Branch Answer`** | **← This skill writes here (via patch_xlsx_inplace.py)** |
 | I | `TownSq Capability` | Reference only (not evidence) |
 | J | `Classification` | Assessor's judgment (do not write) |
-| K | `FG Priority` | Assessor's (do not write) |
+| K | `FB Priority` | Assessor's (do not write) |
 | L | `Assessor Notes` | Assessor's (do not write) |
 | M, N, O | Live formulas | Do not write |
 
@@ -285,4 +285,4 @@ Provide:
 2. **All source documents** (PDFs, transcripts, PPTX, Word, spreadsheets, images)
 3. **Scope**: which domains/capabilities, or all questions?
 4. **Existing answers:** overwrite or fill only empty cells?
-5. **Format preference:** deliver as updated Excel (in-place patched), JSON, or both?  
+5. **Format preference:** deliver as updated Excel (in-place patched), JSON, or both?

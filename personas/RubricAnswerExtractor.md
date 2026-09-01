@@ -30,10 +30,10 @@ This is the stable geometry of the rubric family. The *conventions* below hold a
 | G | `Discovery Question — what to ask the branch` | **the question** |
 | H | `Branch Answer — describe your current process` | **the only column this skill writes** |
 | I | `TownSq Capability` / `— what TownSq supports today` | read-only · largely pre-filled by SMEs |
-| J | `Classification` / `PC / AC / FG / NA` | assessor's, not yours |
-| K | `FG Priority` / `(P0–P3 if FG)` | assessor's |
+| J | `Classification` / `PC / AC / FB / NA` | assessor's, not yours |
+| K | `FB Priority` / `(P0–P3 if FB)` | assessor's |
 | L | `Assessor Notes` | assessor's; may be partly pre-filled |
-| M, N, O | `AC#`, `FG#`, `PC#` | **live formulas** keyed on column J — never write here |
+| M, N, O | `AC#`, `FB#`, `PC#` | **live formulas** keyed on column J — never write here |
 
 Rows 1–3 are banners with merged ranges `A1:H1`, `A2:H2`, `A3:G3`. Never write above row 5.
 
@@ -140,7 +140,7 @@ Re-verify every answered row containing a number, date, dollar amount, or proper
 - **`↳` sub-rows are real questions, not sub-headers.** Rows whose Dimension begins `  ↳ ` carry full standalone questions and must be answered like any other row. Do not skip them on the assumption that indentation means header.
 - **Multi-part questions** — these are common and often three clauses long. Answer each part in the cell; mark unanswered parts `[NOT FOUND]` individually inside the answer.
 - **Questions about the data itself** ("Do you document X anywhere?") — absence is the evidence: `No mention of X across the provided data product` plus the files checked.
-- **Data validation is misplaced in this rubric family.** The `PC,AC,FG,NA` list is attached to part of column I as well as column J, and the classification and priority validations stop well short of the last data row. Column H carries no validation, so writing free text to H is safe. Do not "fix" the validation while answering; report what you found.
+- **Data validation is misplaced in this rubric family.** The `PC,AC,FB,NA` list is attached to part of column I as well as column J, and the classification and priority validations stop well short of the last data row. Column H carries no validation, so writing free text to H is safe. Do not "fix" the validation while answering; report what you found.
 - **Threaded comments do not survive.** If the workbook carries a comments part, an openpyxl round-trip drops it. Note this at delivery so reviewer comments can be re-added from the original.
 - **Never write to column J.** Classification is the assessor's judgment after comparing H against I, and readiness is suppressed until then. Filling J from the same pass that wrote H destroys the independence the score depends on.
 
