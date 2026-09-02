@@ -56,7 +56,7 @@ EDITABLE = {
     "branch_answer": "Branch Answer",
     "townsq_capability": "TownSq Capability",
     "classification": "Classification",
-    "fg_priority": "FB Priority",
+    "fb_priority": "FB Priority",
     "assessor_notes": "Assessor Notes",
 }
 QUESTION_HEADER = "Discovery Question"
@@ -118,12 +118,12 @@ def validate(questions):
         if cls is not None and str(cls).upper() not in VALID_CLASSIFICATION:
             problems.append(f"{uid}: classification {cls!r} not in {sorted(VALID_CLASSIFICATION)}")
 
-        fgp = clean(q.get("fg_priority"))
-        if fgp is not None and str(fgp).upper() not in VALID_PRIORITY:
-            problems.append(f"{uid}: fg_priority {fgp!r} not in {sorted(VALID_PRIORITY)}")
+        fbp = clean(q.get("fb_priority"))
+        if fbp is not None and str(fbp).upper() not in VALID_PRIORITY:
+            problems.append(f"{uid}: fb_priority {fbp!r} not in {sorted(VALID_PRIORITY)}")
 
-        if fgp is not None and (cls is None or str(cls).upper() != "FB"):
-            problems.append(f"{uid}: fg_priority set but classification is not FB")
+        if fbp is not None and (cls is None or str(cls).upper() != "FB"):
+            problems.append(f"{uid}: fb_priority set but classification is not FB")
     return problems
 
 
@@ -229,7 +229,7 @@ def main():
             value = clean(q.get(field))
             if value is None:
                 continue
-            if field in ("classification", "fg_priority"):
+            if field in ("classification", "fb_priority"):
                 value = str(value).upper()
             cell = ws.cell(row, cols[field])
             existing = clean(cell.value)

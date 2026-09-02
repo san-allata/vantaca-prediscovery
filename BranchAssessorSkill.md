@@ -18,7 +18,7 @@ Work only on the **Assessment** sheet. Headers on **row 4**; data starts at **ro
 | **H** | Branch Answer — current process | **Input** |
 | **I** | TownSq Capability — what TownSq supports today | **Input** |
 | **J** | Classification | **Output** — exactly `PC`, `AC`, `FB`, or `NA` |
-| K | FG Priority (P0–P3) | READ ONLY unless asked. Applies **only to FG rows**. |
+| K | FB Priority (P0–P3) | READ ONLY unless asked. Applies **only to FB rows**. |
 | **L** | Assessor Notes | **Output** |
 | M–O | AC# / FB# / PC# | READ ONLY — live formulas keyed on column J. Writing J renumbers them. |
 

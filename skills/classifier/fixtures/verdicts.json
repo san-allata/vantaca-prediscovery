@@ -51,7 +51,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": ""
+      "proposed_fb_priority": ""
     },
     "Q0090": {
       "_capability": "Accounts Payable",
@@ -104,7 +104,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": ""
+      "proposed_fb_priority": ""
     },
     "Q0091": {
       "_capability": "Accounts Payable",
@@ -158,7 +158,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": ""
+      "proposed_fb_priority": ""
     },
     "Q0092": {
       "_capability": "Accounts Payable",
@@ -209,7 +209,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": ""
+      "proposed_fb_priority": ""
     },
     "Q0093": {
       "_capability": "Accounts Payable",
@@ -261,7 +261,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": ""
+      "proposed_fb_priority": ""
     },
     "Q0094": {
       "_capability": "Accounts Payable",
@@ -313,7 +313,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": ""
+      "proposed_fb_priority": ""
     },
     "Q0153": {
       "_capability": "Banking",
@@ -354,7 +354,7 @@
       "driving_facet": "mechanism",
       "branch_clause": "the system has an auto-reconcile feature that matches the GL to the bank transactions",
       "townsq_clause": "Bank reconciliation module in TownSq Business. Cleared items matched against GL",
-      "why": "If automated matching is live this is a timing-only delta (daily matching versus a monthly module) and codes AC; if it is not, the branch loses a 90-95% automatic match rate on roughly 1,100 communities and it codes FG. The SME answer on this row affirms availability while the SME answer on Q0171, in the same capability, says automated bank reconciliation is still in development.",
+      "why": "If automated matching is live this is a timing-only delta (daily matching versus a monthly module) and codes AC; if it is not, the branch loses a 90-95% automatic match rate on roughly 1,100 communities and it codes FB. The SME answer on this row affirms availability while the SME answer on Q0171, in the same capability, says automated bank reconciliation is still in development.",
       "also_requires": "",
       "overturned_by": "",
       "proximity": "Moderate (~50%)",
@@ -365,10 +365,10 @@
       ],
       "hitl_candidates": [
         "AC",
-        "FG"
+        "FB"
       ],
       "hitl_question": "Is automated bank reconciliation live today, and is the branch's primary bank a supported bank for statement import? Q0153 and Q0171 give contradictory SME answers and the code flips on the resolution.",
-      "proposed_fg_priority": ""
+      "proposed_fb_priority": ""
     },
     "Q0162": {
       "_capability": "Banking",
@@ -421,7 +421,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": ""
+      "proposed_fb_priority": ""
     },
     "Q0165": {
       "_capability": "Banking",
@@ -473,10 +473,10 @@
       ],
       "hitl_candidates": [
         "AC",
-        "FG"
+        "FB"
       ],
       "hitl_question": "Does the reconciliation module support a secondary reviewer or approval step, and can it enforce the branch's control that all bank accounts are reconciled before financials are produced? The second half is a real control the branch relies on and the platform answer never mentions it.",
-      "proposed_fg_priority": ""
+      "proposed_fb_priority": ""
     },
     "Q0167": {
       "_capability": "Banking",
@@ -509,7 +509,7 @@
         "townsq_produces_branch_outcome": "no",
         "branch_depends_on_uncovered": "yes: system-generated positive pay files and in-system segregation of approval from release"
       },
-      "code": "FG",
+      "code": "FB",
       "delta": [
         "outcome",
         "system_of_record",
@@ -530,7 +530,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": "P0"
+      "proposed_fb_priority": "P0"
     },
     "Q0171": {
       "_capability": "Banking",
@@ -563,7 +563,7 @@
         "townsq_produces_branch_outcome": "no",
         "branch_depends_on_uncovered": "yes: automated matching and portfolio-level unreconciled visibility"
       },
-      "code": "FG",
+      "code": "FB",
       "delta": [
         "outcome",
         "mechanism",
@@ -584,7 +584,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": "P2"
+      "proposed_fb_priority": "P2"
     },
     "Q0512": {
       "_capability": "Check and Payment Controls",
@@ -617,7 +617,7 @@
         "townsq_produces_branch_outcome": "no",
         "branch_depends_on_uncovered": "yes: the entire positive pay file lifecycle"
       },
-      "code": "FG",
+      "code": "FB",
       "delta": [
         "outcome",
         "mechanism",
@@ -639,7 +639,7 @@
       ],
       "hitl_candidates": [],
       "hitl_question": "",
-      "proposed_fg_priority": "P1"
+      "proposed_fb_priority": "P1"
     }
   }
 }

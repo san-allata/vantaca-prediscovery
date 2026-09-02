@@ -42,7 +42,7 @@ HEADER_PATTERNS = {
     "branch_answer": "Branch Answer",
     "townsq_capability": "TownSq Capability",
     "classification": "Classification",
-    "fg_priority": "FB Priority",
+    "fb_priority": "FB Priority",
     "assessor_notes": "Assessor Notes",
     "qid": "QID",
     "uid": "UID",
@@ -129,7 +129,7 @@ def export(path, out_path):
                 "branch_answer": get("branch_answer"),
                 "townsq_capability": get("townsq_capability"),
                 "classification": get("classification"),
-                "fg_priority": get("fg_priority"),
+                "fb_priority": get("fb_priority"),
                 "assessor_notes": get("assessor_notes"),
             }
         )
@@ -167,7 +167,7 @@ def export(path, out_path):
             "branch_answer",
             "townsq_capability",
             "classification",
-            "fg_priority",
+            "fb_priority",
             "assessor_notes",
         ],
         "read_only_fields": [

@@ -1,6 +1,6 @@
 ---
 name: branch-assessor-skill
-description: Classify branch readiness assessment answers in the TownSq/Associa migration rubric workbook. Use this skill whenever the user asks to classify branch answers, compare branch answers against Associa/TownSq answers, fill in the Classification column, assess capability proximity or match level, score readiness, or process the branch assessment rubric (ExampleRubric.xlsx or similar). Trigger on mentions of "branch answers", "Associa answers", "TownSq capability", "PC/AC/FG classification", "readiness rubric", "capability proximity", or "assessor notes" — even if the user doesn't say "classify" explicitly.
+description: Classify branch readiness assessment answers in the TownSq/Associa migration rubric workbook. Use this skill whenever the user asks to classify branch answers, compare branch answers against Associa/TownSq answers, fill in the Classification column, assess capability proximity or match level, score readiness, or process the branch assessment rubric (ExampleRubric.xlsx or similar). Trigger on mentions of "branch answers", "Associa answers", "TownSq capability", "PC/AC/FB classification", "readiness rubric", "capability proximity", or "assessor notes" — even if the user doesn't say "classify" explicitly.
 ---
 
 # Branch Readiness Classifier
@@ -22,16 +22,16 @@ Work only on the **Assessment** sheet. Headers on **row 4**; data starts at **ro
 | G | Discovery Question | READ ONLY |
 | **H** | Branch Answer — current process | **Input** |
 | **I** | TownSq Capability — what TownSq supports today | **Input** |
-| **J** | Classification | **Output** — exactly `PC`, `AC`, `FG`, or `NA` |
-| K | FG Priority (P0–P3) | READ ONLY unless asked. Applies **only to FG rows**. |
+| **J** | Classification | **Output** — exactly `PC`, `AC`, `FB`, or `NA` |
+| K | FB Priority (P0–P3) | READ ONLY unless asked. Applies **only to FB rows**. |
 | **L** | Assessor Notes | **Output** |
-| M–O | AC# / FG# / PC# | READ ONLY — live formulas keyed on column J. Writing J renumbers them. |
+| M–O | AC# / FB# / PC# | READ ONLY — live formulas keyed on column J. Writing J renumbers them. |
 
 Match G and H by header **substring** (`Discovery Question`, `Branch Answer`) — the real headers carry em-dash suffixes and are singular, so exact-string tests against plural forms fail. Headers are the truth; column letters are the default. Rows 1–3 are merged banners; never write above row 5.
 
 Rows whose Dimension is prefixed `  ↳ ` are **full standalone questions, not sub-headers**. Classify them like any other row.
 
-**The J dropdown does not protect you.** In this rubric family the `PC,AC,FG,NA` validation covers only a leading band of rows, and the same list is also misapplied to part of column I — so many rows have no dropdown at all and Excel will not reject a bad value. Validate code strings in your own code before writing, and report the validation coverage you found.
+**The J dropdown does not protect you.** In this rubric family the `PC,AC,FB,NA` validation covers only a leading band of rows, and the same list is also misapplied to part of column I — so many rows have no dropdown at all and Excel will not reject a bad value. Validate code strings in your own code before writing, and report the validation coverage you found.
 
 ## Reading column I: the prefix is a hypothesis, not the evidence
 
@@ -53,7 +53,7 @@ SME answers often open with a capability prefix, but a large share of cells carr
 - **No prefix at all.** A large minority of cells are plain prose. No shortcut exists; read them.
 - **Speaker-initial prefixes** — two or three letters, or an org name, followed by `-` or `:`. These look structural but encode *who said it*, not the support level. A prefix-keyed classifier gets zero signal from them while believing it matched. The verdict is usually inside the prose instead: "still in development", "not fully available yet", "not currently supported". When an unexplained marker appears, ask the SME what it denotes rather than inferring a support level from it.
 - **Bare-prefix stubs.** A cell containing only `Change in-progress`, or only `After config`, with no sentence behind it, is not a capability statement. **Treat as blocked, exactly like TBD.** Detect by cell length, not by prefix.
-- **Classification leakage.** Occasionally an SME writes the verdict itself into column I (`FG — <capability> not currently supported`, sometimes with a priority attached). Treat as an SME-asserted classification to confirm and cite rather than re-derive, and report it — the judgment belongs in column J.
+- **Classification leakage.** Occasionally an SME writes the verdict itself into column I (`FB — <capability> not currently supported`, sometimes with a priority attached). Treat as an SME-asserted classification to confirm and cite rather than re-derive, and report it — the judgment belongs in column J.
 
 ## Method: decompose, then compare facet by facet
 
@@ -70,7 +70,7 @@ Do not compare paragraph to paragraph. Reduce each side to the facets below and 
 | **Exceptions** | NSF, reversals, mid-year switches, legal hold, edge cases |
 | **Evidence** | What audit trail or artifact is produced? |
 
-Divergence in **outcome** or **exceptions** points to FG. Divergence in **actors, timing, or controls** with the outcome intact points to PC. Convergence on everything except **mechanism setup** points to AC.
+Divergence in **outcome** or **exceptions** points to FB. Divergence in **actors, timing, or controls** with the outcome intact points to PC. Convergence on everything except **mechanism setup** points to AC.
 
 ## Decision ladder
 
@@ -78,8 +78,8 @@ Walk it in order; stop at the first test that resolves.
 
 1. **Is either side unreadable?** H empty, or I is `TBD` or a bare-prefix stub → **blocked**, no code. Report; do not classify.
 2. **Does the branch do this at all?** H states positively that they don't, or it doesn't apply to their portfolio → **NA**.
-3. **Can TownSq produce the required outcome today?** Evidence in I says no, or says `Partial` where the missing part covers something H shows the branch actually depends on → **FG**.
-4. **Is the capability in flight rather than live?** `Change in-progress`, "in development", "on the roadmap" → **FG**, unless I explicitly states availability before this branch's go-live. Either way, name the dependency and the date in L.
+3. **Can TownSq produce the required outcome today?** Evidence in I says no, or says `Partial` where the missing part covers something H shows the branch actually depends on → **FB**.
+4. **Is the capability in flight rather than live?** `Change in-progress`, "in development", "on the roadmap" → **FB**, unless I explicitly states availability before this branch's go-live. Either way, name the dependency and the date in L.
 5. **Capability exists. Must the branch change how it works?**
    - Only the system needs setting up; the branch's steps, roles, and timing survive → **AC**
    - The branch's steps, roles, approvals, or timing must change → **PC**
@@ -89,9 +89,9 @@ Walk it in order; stop at the first test that resolves.
 
 Most real rows need both — a configuration *and* a behavior change. The rubric permits one code, so apply the **dominant-blocker rule**: assign the code for the change that blocks go-live if it does not happen, and record the other explicitly in L as `Also requires: <config or process change>`. Without that clause the Onboarding List loses config work that genuinely existed.
 
-### Bias toward FG when capability existence is unproven
+### Bias toward FB when capability existence is unproven
 
-The two error directions are not equally priced. A false FG surfaces in backlog grooming and is removed within days. A false AC or PC hides a build need until UAT, after the readiness score has been reported to the client. So when I does not affirmatively establish that the capability exists, classify **FG** and state what evidence would overturn it. Never infer capability from a product's general reputation, from another row, or from what TownSq "surely must" support.
+The two error directions are not equally priced. A false FB surfaces in backlog grooming and is removed within days. A false AC or PC hides a build need until UAT, after the readiness score has been reported to the client. So when I does not affirmatively establish that the capability exists, classify **FB** and state what evidence would overturn it. Never infer capability from a product's general reputation, from another row, or from what TownSq "surely must" support.
 
 ### NA requires positive evidence
 
@@ -106,8 +106,8 @@ Every classified row gets one, judged from facet overlap — not from the prefix
 | **Exact match** | Facets align; drop-in | AC |
 | **High (~75%)** | Same outcome and mechanism; minor actor or timing deltas | AC / PC |
 | **Moderate (~50%)** | Outcome overlaps; material control, scope, or exception deltas | PC |
-| **Low (~25%)** | Small overlap; most of the branch's need unmet or done very differently | FG / PC |
-| **No match** | Nothing comparable on one side | FG / NA |
+| **Low (~25%)** | Small overlap; most of the branch's need unmet or done very differently | FB / PC |
+| **No match** | Nothing comparable on one side | FB / NA |
 
 A `Native` capability the branch handles completely differently is still a Moderate or Low proximity **PC**.
 
@@ -134,8 +134,8 @@ Quote or tightly paraphrase both sides. No adjectives about fit quality — stat
    - column H fill count; column I fill count
    - column I marker distribution: each support-level prefix, no-prefix, speaker-initial, bare-prefix stub, `TBD`, classification leakage
    - pre-existing fill counts for columns J, K, L
-   - `PC,AC,FG,NA` validation coverage, and which rows fall outside it
-   - **any column J value that is not `PC` / `AC` / `FG` / `NA`** — earlier automated passes have left sentinels such as an em-dash to mean "escalated". They look classified in the grid but count as unclassified everywhere else, so report them and treat them as unclassified
+   - `PC,AC,FB,NA` validation coverage, and which rows fall outside it
+   - **any column J value that is not `PC` / `AC` / `FB` / `NA`** — earlier automated passes have left sentinels such as an em-dash to mean "escalated". They look classified in the grid but count as unclassified everywhere else, so report them and treat them as unclassified
    - whether the **Summary** sheet's formulas reference column J over the full row range, and whether its domain roster matches the Dom # values actually present (see step 9)
    - **triage buckets**: classifiable (H filled **and** I substantive) · blocked-on-SME (I is TBD or a stub) · blocked-on-branch (H empty) · already-classified · HITL
 
@@ -151,12 +151,12 @@ Quote or tightly paraphrase both sides. No adjectives about fit quality — stat
 
 6. **Stage for review; do not ask once per row.** Write the proposed `J`, `L`, proximity, and confidence to a **`Classification Review`** sheet — one row per Assessment row, carrying the Assessment row number — and get sign-off there. Commit to columns J and L only after approval. Per-row confirmation does not scale at rubric size, and per-capability sampling misses the outliers.
 
-7. **Write J and L only.** Assert every J value is in `{PC, AC, FG, NA}` in code before writing, since the dropdown covers only part of the sheet. Never write to A–G, K, or M–O.
+7. **Write J and L only.** Assert every J value is in `{PC, AC, FB, NA}` in code before writing, since the dropdown covers only part of the sheet. Never write to A–G, K, or M–O.
 
 8. **Recalculate and verify.** Run `recalc.py` — writing J changes what M/N/O compute, and openpyxl saves formulas without cached values. Then grep the saved XML for `hidden="1"` on every sheet and assert zero; a LibreOffice round-trip has silently hidden rows on this workbook family before, which makes the file look filtered to a single domain. Reload and spot-check five written rows against their Assessment row numbers.
 
 9. **Verify the Summary sheet actually reflects what you wrote — this is part of the job, not an optional extra.** A classification nobody can see at the domain level has not been delivered. Before reporting, check all four:
-   - its `PC` / `AC` / `FG` / `NA` formulas reference Assessment column **J**, not column I (pointing at I is a known defect in this workbook family and makes every count read zero)
+   - its `PC` / `AC` / `FB` / `NA` formulas reference Assessment column **J**, not column I (pointing at I is a known defect in this workbook family and makes every count read zero)
    - its ranges cover the **full** data extent, not a stale lower bound from an earlier, shorter rubric revision
    - its domain roster matches the Dom # values actually present on the Assessment sheet — stale rosters name domains the workbook does not contain and omit ones it does
    - each row's counts reconcile against an independent recount of column J
@@ -170,7 +170,7 @@ Quote or tightly paraphrase both sides. No adjectives about fit quality — stat
 - **Never classify on column I alone.** No branch answer means no gap to measure.
 - **Never infer a branch answer.** Classify strictly on the text in H. If H is vague, say so in `Confidence` and consider HITL rather than picking the flattering reading.
 - **Never type a readiness number into the Summary sheet.** Its readiness column is deliberately gated to show `—` until a domain's branch answers are complete and its classification is finished. That dash is by design, not a broken formula.
-- **Do not set column K** unless asked. It belongs to FG rows only, and priority is a business decision, not a classification output.
+- **Do not set column K** unless asked. It belongs to FB rows only, and priority is a business decision, not a classification output.
 - **Never overwrite an existing assessor note** without confirmation; if appending, separate with ` | `.
 - **Work on a copy** in the working directory and deliver the copy.
 - **Threaded comments do not survive** an openpyxl round-trip. If the workbook carries a comments part, say so at delivery.

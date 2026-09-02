@@ -106,7 +106,7 @@ Answers can also update other fields on the same question object:
   {
     "question_index": 2,
     "branch_answer": "Weekly automated backups",
-    "fg_priority": "High"
+    "fb_priority": "High"
   }
 ]
 ```
