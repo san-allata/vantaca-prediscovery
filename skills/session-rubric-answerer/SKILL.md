@@ -45,13 +45,13 @@ This skill is a **conductor**: it does not reimplement extraction/patching logic
 3. Sheet `Rubric Mapping`: take every row (one or more per `Planned Question ID`), each carrying an `Exact Rubric Question` string — this is the full list of Master Rubric questions this session is responsible for.
 
 ### Step 3 — Resolve target rows in the Master Rubric
-1. Load the Master Rubric `Assessment` sheet (header row 4, data from row 5; columns per `rubric-answer-extractor-integrated`'s layout reference — G = Discovery Question, H = Branch Answer).
+1. Load the Master Rubric `Assessment` sheet (header row 4, data from row 5; columns per `rubric-answer-extractor-skill`'s layout reference — G = Discovery Question, H = Branch Answer).
 2. Run `scripts/resolve_session_scope.py` (this skill) to match each `Exact Rubric Question` from Step 2 against Assessment column G by normalized text, producing one resolved record per mapped question: `{planned_question_id, planned_question, must_capture, exact_rubric_question, master_rubric_row}`.
 3. **Any question that fails to resolve to a row must be reported as an unresolved mapping — never guessed or skipped silently.** Do not proceed to patch an unresolved row.
 4. This resolved list is the **complete and exclusive scope** for this run: only these rows may be touched in Step 5.
 
 ### Step 4 — Extract grounded answers (session-scoped only)
-1. Hand off to **rubric-answer-extractor-integrated** with:
+1. Hand off to **rubric-answer-extractor-skill** with:
    - Corpus = ONLY this session's transcript (plain text from Step 1) — never any other session's transcript or any other source document
    - Context per question = that question's `planned_question` and `must_capture` notes from Step 3 (use these to focus the search, not as evidence themselves)
    - Question list = exactly the resolved `exact_rubric_question` values from Step 3

@@ -39,7 +39,7 @@ updates.json format (array of objects). Two supported shapes, may be mixed:
 ]
 
 IMPORTANT: This script performs NO answer formatting or reformatting.
-Callers (the rubric-answer-extractor-integrated skill / json-question-answer-patcher)
+Callers (the rubric-answer-extractor-skill skill / json-question-answer-patcher)
 must pre-format every `answer` string exactly per references/answer-format.md
 before calling this script, e.g.:
 

@@ -49,7 +49,7 @@ Use the following attached skills, always in this order for a full session run:
 
 1. **`session-rubric-answerer`** (source of truth / conductor) — defines the full end-to-end workflow: locate files → ensure plain-text transcript → extract session-scoped mapping rows → resolve target Master Rubric rows (via its bundled `resolve_session_scope.py`) → extract grounded answers → patch in place → report. Always follow this skill's Workflow and Boundaries exactly for any "process session N" request.
 2. **`docx-transcript-extractor`** — invoke automatically (never ask the user to convert manually) whenever the session's transcript is only available as a `.docx` file and no plain-text version exists. Never invoke this if a `.txt` transcript is already present.
-3. **`rubric-answer-extractor-integrated`** — use for the actual answer-extraction step once the session's transcript (plain text) and its resolved question list are ready. Follow its exact answer format (`answer_corpus` + `Source:` line, plus optional `GAPS:` line) and its mandatory self-audit step.
+3. **`rubric-answer-extractor-skill`** — use for the actual answer-extraction step once the session's transcript (plain text) and its resolved question list are ready. Follow its exact answer format (`answer_corpus` + `Source:` line, plus optional `GAPS:` line) and its mandatory self-audit step.
 4. **`json-rubric-tools-skill`** (`patch_xlsx_inplace.py`) — use for the final write step. This must always be an in-place patch of the ORIGINAL Master Rubric workbook — never a rebuild from JSON.
 5. **`excel-qa-processor`** — use its extraction conventions (`SELECT * LIMIT 10000`, no `WHERE`/`rowid`, dynamic column detection) whenever pulling data out of the Analyst Workbook or Master Rubric via `executeQuery`/`getSpreadsheetInfo`.
 6. **`json-question-answer-patcher`** — only relevant if the user explicitly wants a JSON-template workflow instead of direct Excel patching; not used in the default Excel-in-place path.
@@ -109,7 +109,7 @@ Extraction Data Product
 
 - session-rubric-answerer
 - docx-transcript-extractor
-- rubric-answer-extractor-integrated
+- rubric-answer-extractor-skill
 - json-rubric-tools-skill
 - json-question-answer-patcher
 - excel-qa-processor

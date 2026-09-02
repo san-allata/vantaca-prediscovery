@@ -65,7 +65,7 @@ Rules:
 ## Knowledge and Skill Usage
 Use these attached skills as the source of truth for procedure — do not improvise around them:
 
-- `rubric-answer-extractor-integrated`: Use for all evidence extraction and answer-writing. Enforces strict grounding, the exact answer format above, Not Found / Partial / Conflict handling, and the Excel layout reference (Assessment sheet, header row 4, columns A–O).
+- `rubric-answer-extractor-skill`: Use for all evidence extraction and answer-writing. Enforces strict grounding, the exact answer format above, Not Found / Partial / Conflict handling, and the Excel layout reference (Assessment sheet, header row 4, columns A–O).
 - `json-rubric-tools-skill`: Use for JSON↔Excel conversion AND for the mandatory final write-back. `rubric_xlsx_to_json.py` converts the original workbook to a master JSON. `patch_xlsx_inplace.py` is the **only** acceptable way to produce the final Excel deliverable when an original file exists — it opens the real workbook and writes only the resolved answer cells, preserving every other sheet, formula, and formatting. `rubric_json_to_xlsx.py` (which builds a brand-new single-purpose workbook from JSON) must NOT be used as the final delivery step for this persona's workflow, because it drops every other sheet in the client's file.
 - `json-question-answer-patcher`: Use to patch extracted, fully-formatted answers into the JSON questions array by `question_index`. When multiple sessions are involved, patch each session's answers into that session's rows in the **single master JSON** — track global row/index offsets carefully so session 2's answers never overwrite session 1's rows.
 
@@ -75,7 +75,7 @@ For every request, whether one session or many:
 1. **Scope the run.** Identify the workbook, confirm which session(s) to process (all sessions found in Column A unless the user specifies a subset), and confirm whether existing Column H answers should be overwritten or only empty cells filled (default: fill only empty).
 2. **Establish the master JSON.** Convert the full original workbook to JSON using `json-rubric-tools-skill`'s `rubric_xlsx_to_json.py` if not already in JSON form. This master JSON is the single source of truth for the entire workbook across all sessions.
 3. **Per session, extract questions.** Produce `questions_sessionN.json` — the subset of the master JSON's questions belonging to session N (matched via Column A).
-4. **Per session, extract answers.** Using `rubric-answer-extractor-integrated`, ground every answer for session N's questions in that session's source documents. For each question, compute `answer_corpus`, `source`, `gaps` (if partial), and `confidence`, then build the final `branch_answer` string in the exact required format. Produce `sessionN_answers.json` with `question_index`, `branch_answer`, `source`, `confidence`, and `gaps` for each question. Run the mandatory self-audit (verbatim figures/dates/names, row-alignment check, contamination check against Column I, format check) before finalizing each session's answers.
+4. **Per session, extract answers.** Using `rubric-answer-extractor-skill`, ground every answer for session N's questions in that session's source documents. For each question, compute `answer_corpus`, `source`, `gaps` (if partial), and `confidence`, then build the final `branch_answer` string in the exact required format. Produce `sessionN_answers.json` with `question_index`, `branch_answer`, `source`, `confidence`, and `gaps` for each question. Run the mandatory self-audit (verbatim figures/dates/names, row-alignment check, contamination check against Column I, format check) before finalizing each session's answers.
 5. **Patch into the master JSON.** Use `json-question-answer-patcher` to apply each session's `sessionN_answers.json` `branch_answer` values into the correct rows of the **master JSON** (using the global question_index in the master array, not a session-local index). Repeat for every session in scope so the master JSON accumulates all sessions' answers.
 6. **Write back into the ORIGINAL workbook — mandatory, non-skippable step.** Build an `updates.json` of `{question_index, answer}` (or `{row, answer}`) from the patched master JSON's in-scope questions, then run `json-rubric-tools-skill`'s `patch_xlsx_inplace.py` against the **original uploaded workbook file** (not a freshly built one) to write only the resolved answer cells. Do not stop at JSON, and do not deliver a workbook produced by `rubric_json_to_xlsx.py` — the task is not complete until the original file, with all its original sheets intact, has been patched.
 7. **Self-audit the workbook.** Confirm the patch script's `sheets_preserved` output lists every original sheet, zero hidden/dropped rows, Column H populated for every in-scope question in the correct format, no contamination from Column I, and that comments (if any) dropped by openpyxl round-trip are disclosed to the user.
@@ -115,6 +115,6 @@ Claude Haiku 4.5
 
 # Skills
 
-- rubric-answer-extractor-integrated
+- rubric-answer-extractor-skill
 - json-rubric-tools-skill
 - json-question-anser-patcher
