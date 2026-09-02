@@ -1,0 +1,645 @@
+{
+  "verdicts": {
+    "Q0089": {
+      "_capability": "Accounts Payable",
+      "_dimension": "Invoice intake & routing",
+      "_priority": "P0",
+      "_question": "Walk through your AP process step by step — from invoice receipt to payment. Who touches it at each stage?",
+      "_sme_marker": "After config",
+      "_confidence_ceiling": "High (prefix + confirmed)",
+      "facets_branch": {
+        "outcome": "invoice_captured_coded_approved_paid",
+        "system_of_record": "external_ap_processor_with_bidirectional_integration",
+        "mechanism": "third_party_intake_plus_external_print_and_pay_fulfilment",
+        "actors": "community_manager_then_accountant_then_releaser",
+        "trigger_timing": "continuous_intake_daily_bulk_release",
+        "controls": "gl_code_mandatory_two_stage_approval_funds_check",
+        "exceptions": "board_approval_step_at_start_or_end_for_under_50_properties",
+        "evidence": "indexed_invoice_image"
+      },
+      "facets_townsq": {
+        "outcome": "invoice_captured_coded_approved_paid",
+        "system_of_record": "native_platform",
+        "mechanism": "native_workflow",
+        "actors": "configurable_approvers",
+        "trigger_timing": "",
+        "controls": "gl_coding_and_association_assignment_required",
+        "exceptions": "",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "yes",
+        "branch_depends_on_uncovered": "yes: third-party intake channels and external print/pay fulfilment"
+      },
+      "code": "PC",
+      "delta": [
+        "system_of_record",
+        "mechanism",
+        "evidence"
+      ],
+      "driving_facet": "system_of_record",
+      "branch_clause": "Ideally all invoices go directly to the Avid Strongroom AP lockbox",
+      "townsq_clause": "AP invoice entry and routing native in TownSq Business",
+      "why": "The outcome and the three approval stages are reproducible, but AP moves from a third-party processor into the platform, so the intake channels, the check-print and electronic-pay fulfilment, and the vendor enrolment model all change.",
+      "also_requires": "configuration of approver rules, GL coding and association assignment during onboarding",
+      "overturned_by": "",
+      "proximity": "Moderate (~50%)",
+      "confidence": "High",
+      "confidence_note": "both sides explicit; the branch's fulfilment path has no stated platform equivalent on this row",
+      "flags": [
+        "architecture_delta_shared_with_Q0091"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": ""
+    },
+    "Q0090": {
+      "_capability": "Accounts Payable",
+      "_dimension": "Approval / hold / reject workflow",
+      "_priority": "P0",
+      "_question": "Do you have dollar limits that require Board Member or Branch Executive approval before paying an invoice? What are the thresholds and who approves?",
+      "_sme_marker": "After config",
+      "_confidence_ceiling": "High (prefix + confirmed)",
+      "facets_branch": {
+        "outcome": "invoice_approved_before_payment",
+        "system_of_record": "external_ap_processor",
+        "mechanism": "all_or_nothing_board_participation",
+        "actors": "manager_accountant_optional_board",
+        "trigger_timing": "per_invoice",
+        "controls": "no_dollar_threshold_in_processor_50k_signature_rule_in_pm_system",
+        "exceptions": "under_50_properties_with_board_in_chain",
+        "evidence": ""
+      },
+      "facets_townsq": {
+        "outcome": "invoice_approved_before_payment",
+        "system_of_record": "native_platform",
+        "mechanism": "configurable_threshold_rules",
+        "actors": "board_and_branch_exec_routing_configurable",
+        "trigger_timing": "per_invoice",
+        "controls": "dollar_threshold_approval_rules",
+        "exceptions": "",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "yes — and exceeds it",
+        "branch_depends_on_uncovered": "no"
+      },
+      "code": "AC",
+      "delta": [
+        "controls",
+        "mechanism"
+      ],
+      "driving_facet": "controls",
+      "branch_clause": "In Strongroom there are no dollar thresholds",
+      "townsq_clause": "Dollar-threshold approval rules configurable in TownSq AP module",
+      "why": "The branch has no threshold control today and is turned down when boards ask for one; the platform supplies thresholds as configuration, so nothing in the branch's process has to change and the existing $50,000 manual-check signature rule can be configured directly.",
+      "also_requires": "configure the $50,000 signature-approval threshold and decide whether to offer boards the threshold-scoped approval they have been refused",
+      "overturned_by": "",
+      "proximity": "High (~75%)",
+      "confidence": "High",
+      "confidence_note": "both sides explicit; the $50,000 figure was hedged in the branch answer",
+      "flags": [
+        "gap_runs_in_reverse_platform_exceeds_current_state",
+        "high_lexical_overlap_non_gap_verdict"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": ""
+    },
+    "Q0091": {
+      "_capability": "Accounts Payable",
+      "_dimension": "ACH payment processing",
+      "_priority": "P0",
+      "_question": "Do you pay any vendors by ACH? If yes, how do you set up an ACH vendor and how are payments initiated?",
+      "_sme_marker": "After config",
+      "_confidence_ceiling": "High (prefix + confirmed)",
+      "facets_branch": {
+        "outcome": "vendor_paid_electronically_where_vendor_opts_in",
+        "system_of_record": "vendor_bank_details_held_by_third_party_never_by_branch",
+        "mechanism": "vendor_self_enrols_with_processor_processor_executes",
+        "actors": "vendor_and_processor_branch_not_involved",
+        "trigger_timing": "on_invoice_approval",
+        "controls": "branch_deliberately_holds_no_vendor_bank_data",
+        "exceptions": "branch_configured_bank_draft_for_utilities",
+        "evidence": "payment_type_visible_after_the_fact_in_history"
+      },
+      "facets_townsq": {
+        "outcome": "vendor_paid_by_ach",
+        "system_of_record": "vendor_ach_details_held_in_platform",
+        "mechanism": "payment_runs_initiated_from_ap_module",
+        "actors": "branch_initiates",
+        "trigger_timing": "payment_run",
+        "controls": "ach_banking_details_required_on_file",
+        "exceptions": "",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "yes",
+        "branch_depends_on_uncovered": "yes: a model in which the branch never holds vendor bank details"
+      },
+      "code": "PC",
+      "delta": [
+        "system_of_record",
+        "actors",
+        "controls"
+      ],
+      "driving_facet": "system_of_record",
+      "branch_clause": "We do not collect vendor bank information",
+      "townsq_clause": "Vendor must have ACH banking details on file",
+      "why": "ACH exists on both sides but custody moves: adopting it requires the branch to start collecting, validating and safeguarding vendor bank details and to initiate payment runs itself, which is precisely the responsibility it has deliberately pushed to the third-party processor.",
+      "also_requires": "a vendor bank-detail collection and change-verification process that does not exist today, plus a decision on whether the processor's vendor self-enrolment model is retained",
+      "overturned_by": "",
+      "proximity": "Moderate (~50%)",
+      "confidence": "High",
+      "confidence_note": "the branch's refusal to hold vendor bank data is stated flatly on both the AP and vendor-setup rows",
+      "flags": [
+        "new_sensitive_data_custody",
+        "architecture_delta_shared_with_Q0089"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": ""
+    },
+    "Q0092": {
+      "_capability": "Accounts Payable",
+      "_dimension": "Cash-poor / priority handling",
+      "_priority": "P1",
+      "_question": "If there is not enough money in an association's bank account to pay a vendor, what happens? Who decides what gets paid and in what order?",
+      "_sme_marker": "Partial",
+      "_confidence_ceiling": "Medium (unconfirmed marker)",
+      "facets_branch": {
+        "outcome": "payments_prioritised_or_held_when_funds_short",
+        "system_of_record": "pm_system",
+        "mechanism": "manual_review_and_hold",
+        "actors": "community_manager_decides_accountant_checks_funds_board_for_some",
+        "trigger_timing": "at_secondary_approval_before_release",
+        "controls": "utilities_and_insurance_paid_first_then_manager_judgement",
+        "exceptions": "board_consulted_for_the_50_board_approval_properties",
+        "evidence": "invoice_returned_to_manager_for_funding_issues"
+      },
+      "facets_townsq": {
+        "outcome": "payments_prioritised_or_held_when_funds_short",
+        "system_of_record": "native_platform",
+        "mechanism": "manual_review_and_hold_no_automated_queue",
+        "actors": "assessor_or_manager",
+        "trigger_timing": "when_funds_limited",
+        "controls": "manual_prioritisation",
+        "exceptions": "",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "yes",
+        "branch_depends_on_uncovered": "no — the branch's own process is manual, so the missing automation is not a dependency"
+      },
+      "code": "AC",
+      "delta": [
+        "actors"
+      ],
+      "driving_facet": "actors",
+      "branch_clause": "We default to paying utilities and insurance first",
+      "townsq_clause": "assessor or manager manually reviews and holds or prioritises invoices in TownSq when funds are limited",
+      "why": "Both sides handle this manually with the same outcome, so the Partial marker does not bite — the automation the platform lacks is automation the branch does not have either; only role mapping needs configuring.",
+      "also_requires": "confirm the accountant's funds-sufficiency check at secondary approval exists as a distinct stage, and encode the utilities-and-insurance-first rule as guidance since neither side automates it",
+      "overturned_by": "",
+      "proximity": "High (~75%)",
+      "confidence": "Medium",
+      "confidence_note": "capped by the unconfirmed marker on the platform answer; the funds-check stage is not addressed there",
+      "flags": [
+        "sme_answer_unconfirmed"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": ""
+    },
+    "Q0093": {
+      "_capability": "Accounts Payable",
+      "_dimension": "Invoice history & notes",
+      "_priority": "P1",
+      "_question": "How do you view the payment history for a vendor or a specific invoice? Can you add notes or comments to an invoice record?",
+      "_sme_marker": "Native",
+      "_confidence_ceiling": "High (prefix + confirmed)",
+      "facets_branch": {
+        "outcome": "vendor_and_invoice_history_visible_and_annotatable",
+        "system_of_record": "external_ap_processor",
+        "mechanism": "processor_ui_plus_queue_and_optional_email_alerts",
+        "actors": "manager_and_accountant_board_read_only",
+        "trigger_timing": "on_demand",
+        "controls": "",
+        "exceptions": "board_portal_shows_register_and_images_but_not_per_vendor_history",
+        "evidence": "two_tier_notes_check_stub_and_internal_with_kickback_comment"
+      },
+      "facets_townsq": {
+        "outcome": "vendor_and_invoice_history_visible_and_annotatable",
+        "system_of_record": "native_platform",
+        "mechanism": "query_by_vendor_association_or_date_range",
+        "actors": "",
+        "trigger_timing": "on_demand",
+        "controls": "",
+        "exceptions": "",
+        "evidence": "notes_and_attachments_included"
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "yes",
+        "branch_depends_on_uncovered": "partial: notes that print on the check stub, as distinct from internal notes"
+      },
+      "code": "AC",
+      "delta": [
+        "mechanism",
+        "evidence"
+      ],
+      "driving_facet": "evidence",
+      "branch_clause": "there are notes that go onto the check stub and notes that are internal only",
+      "townsq_clause": "Full AP invoice history accessible by vendor, association, or date range",
+      "why": "History and annotation are native and cover more ground than the branch has today, including the per-vendor board view it currently lacks; the branch's process survives with configuration only.",
+      "also_requires": "verify the two-tier note model — a note that prints on the check stub versus an internal-only note carrying the accountant's kickback comment — since the platform answer says only 'notes'",
+      "overturned_by": "",
+      "proximity": "High (~75%)",
+      "confidence": "Medium",
+      "confidence_note": "native capability is explicit; the check-stub note distinction is unverified and is a real control the branch uses",
+      "flags": [
+        "sub_feature_unverified"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": ""
+    },
+    "Q0094": {
+      "_capability": "Accounts Payable",
+      "_dimension": "Supporting document mgmt",
+      "_priority": "P1",
+      "_question": "How are supporting documents (contracts, POs, photos of work) attached to an invoice before it goes through approval?",
+      "_sme_marker": "After config",
+      "_confidence_ceiling": "High (prefix + confirmed)",
+      "facets_branch": {
+        "outcome": "required_evidence_present_before_approval",
+        "system_of_record": "external_ap_processor_holds_invoice_image",
+        "mechanism": "human_enforcement_at_two_approval_stages",
+        "actors": "manager_then_accountant",
+        "trigger_timing": "before_and_at_approval",
+        "controls": "category_based_evidence_rules_no_po_for_regular_invoices",
+        "exceptions": "insurance_and_construction_need_indemnity_form_check_requests_need_proposal_or_receipt",
+        "evidence": "indexed_invoice_image"
+      },
+      "facets_townsq": {
+        "outcome": "supporting_documents_attached_before_approval_routing",
+        "system_of_record": "native_platform",
+        "mechanism": "attachment_to_invoice_record",
+        "actors": "",
+        "trigger_timing": "before_approval_routing",
+        "controls": "",
+        "exceptions": "",
+        "evidence": "contracts_photos_purchase_orders_attached"
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "yes",
+        "branch_depends_on_uncovered": "no — the branch's control is human enforcement, not system enforcement"
+      },
+      "code": "AC",
+      "delta": [
+        "system_of_record",
+        "mechanism"
+      ],
+      "driving_facet": "mechanism",
+      "branch_clause": "the manager should not approve it without the documentation there, and the accountant should send it back if it is not there",
+      "townsq_clause": "Supporting documents (contracts, photos of work, purchase orders) attached to invoice records in TownSq before approval routing",
+      "why": "Attachment is supported after configuration and exceeds current practice; the branch's control is a human check at two approval stages, which is preserved and does not depend on any system feature the platform lacks.",
+      "also_requires": "confirm whether conditional document requirements by category (indemnity form for insurance and construction, proposal or receipt for non-invoice check requests) can be configured as rules rather than left to reviewer memory",
+      "overturned_by": "",
+      "proximity": "High (~75%)",
+      "confidence": "Medium",
+      "confidence_note": "platform side explicit; the branch answer is partial on attachment mechanics, so the comparison rests on the enforcement facet rather than the storage facet",
+      "flags": [
+        "branch_answer_partial"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": ""
+    },
+    "Q0153": {
+      "_capability": "Banking",
+      "_dimension": "Bank statement reconciliation",
+      "_priority": "P0",
+      "_question": "How do you complete monthly bank reconciliations — manually, in the system, or a combination? Walk through the steps.",
+      "_sme_marker": "After config",
+      "_confidence_ceiling": "High (prefix + confirmed)",
+      "facets_branch": {
+        "outcome": "bank_activity_reconciled_to_gl_monthly",
+        "system_of_record": "pm_system_with_daily_bank_download",
+        "mechanism": "daily_download_plus_auto_match_90_to_95_percent",
+        "actors": "property_accountant_works_exceptions",
+        "trigger_timing": "daily_matching_monthly_close_gate",
+        "controls": "all_accounts_reconciled_before_financials_produced",
+        "exceptions": "15_day_discrepancy_tolerance_unmatched_items_posted_from_the_reconciliation",
+        "evidence": "no_portfolio_level_unreconciled_view"
+      },
+      "facets_townsq": {
+        "outcome": "bank_activity_reconciled_to_gl_monthly",
+        "system_of_record": "native_platform",
+        "mechanism": "reconciliation_module_cleared_items_matched_against_gl",
+        "actors": "",
+        "trigger_timing": "monthly_within_the_system",
+        "controls": "",
+        "exceptions": "",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "disputed",
+        "branch_depends_on_uncovered": "disputed: automated matching at a 90-95% hit rate"
+      },
+      "code": "",
+      "delta": [
+        "mechanism",
+        "trigger_timing"
+      ],
+      "driving_facet": "mechanism",
+      "branch_clause": "the system has an auto-reconcile feature that matches the GL to the bank transactions",
+      "townsq_clause": "Bank reconciliation module in TownSq Business. Cleared items matched against GL",
+      "why": "If automated matching is live this is a timing-only delta (daily matching versus a monthly module) and codes AC; if it is not, the branch loses a 90-95% automatic match rate on roughly 1,100 communities and it codes FG. The SME answer on this row affirms availability while the SME answer on Q0171, in the same capability, says automated bank reconciliation is still in development.",
+      "also_requires": "",
+      "overturned_by": "",
+      "proximity": "Moderate (~50%)",
+      "confidence": "Low",
+      "confidence_note": "contradictory SME statements within one capability; not resolvable from the workbook",
+      "flags": [
+        "sme_contradiction_with_Q0171"
+      ],
+      "hitl_candidates": [
+        "AC",
+        "FG"
+      ],
+      "hitl_question": "Is automated bank reconciliation live today, and is the branch's primary bank a supported bank for statement import? Q0153 and Q0171 give contradictory SME answers and the code flips on the resolution.",
+      "proposed_fg_priority": ""
+    },
+    "Q0162": {
+      "_capability": "Banking",
+      "_dimension": "Banking Relationships & Account Setup",
+      "_priority": "P0",
+      "_question": "How are signatory authorities managed across association bank accounts — who has signing authority and how is that updated when board members change?",
+      "_sme_marker": "no_prefix",
+      "_confidence_ceiling": "High (explicit negation)",
+      "facets_branch": {
+        "outcome": "only_authorised_parties_can_sign_or_release",
+        "system_of_record": "bank_holds_signatory_authority_pm_system_holds_digital_signatures",
+        "mechanism": "signature_block_selected_per_bank_account_blank_stock_encoded_by_system",
+        "actors": "authorised_signers_for_wires_administrator_for_signature_access",
+        "trigger_timing": "per_payment",
+        "controls": "admin_only_access_to_digital_signatures_users_cannot_manipulate_them",
+        "exceptions": "board_member_change_process_not_described",
+        "evidence": "signature_selection_tied_to_the_user_who_made_it"
+      },
+      "facets_townsq": {
+        "outcome": "only_authorised_parties_can_sign",
+        "system_of_record": "bank_holds_signatory_authority",
+        "mechanism": "signatures_uploaded_into_a_separate_tool_for_check_printing",
+        "actors": "management_company_personnel_typically_hold_signing_authority",
+        "trigger_timing": "on_change_handled_directly_with_the_bank",
+        "controls": "no_dedicated_system_interface_for_signatory_changes",
+        "exceptions": "",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "partial",
+        "branch_depends_on_uncovered": "yes: admin-gated digital signature storage with a per-account signature block and a user-tied audit trail"
+      },
+      "code": "PC",
+      "delta": [
+        "system_of_record",
+        "controls",
+        "evidence"
+      ],
+      "driving_facet": "controls",
+      "branch_clause": "only an administrator has the ability to access the digital signatures",
+      "townsq_clause": "there is no dedicated system interface for managing signatory changes",
+      "why": "Both sides agree signatory authority itself lives with the bank, so the asked outcome is unchanged; what changes is that the branch's in-system signature controls — administrator-only access, a signature block bound to each bank account, and an audit trail tied to the selecting user — have no established platform equivalent and signature handling moves to an uploaded-signature model.",
+      "also_requires": "verify administrator-gated signature access, per-bank-account signature blocks and a user-attributable audit trail before check printing moves",
+      "overturned_by": "",
+      "proximity": "Moderate (~50%)",
+      "confidence": "Medium",
+      "confidence_note": "the platform answer is prose with an explicit negation but no support-level prefix; neither side describes the board-change update path the question asks about",
+      "flags": [
+        "question_partly_unanswered_on_both_sides"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": ""
+    },
+    "Q0165": {
+      "_capability": "Banking",
+      "_dimension": "Bank Reconciliation",
+      "_priority": "P0",
+      "_question": "Who signs off on completed bank reconciliations — is there a secondary reviewer or approval step before the reconciliation is considered final?",
+      "_sme_marker": "no_prefix",
+      "_confidence_ceiling": "Low (prose, no support level)",
+      "facets_branch": {
+        "outcome": "reconciliation_completed_and_final_before_financials",
+        "system_of_record": "pm_system",
+        "mechanism": "month_end_closing_task",
+        "actors": "property_accountant_assigned_to_the_property",
+        "trigger_timing": "monthly_before_financials_produced",
+        "controls": "completion_gate_not_a_sign_off",
+        "exceptions": "",
+        "evidence": ""
+      },
+      "facets_townsq": {
+        "outcome": "reconciliation_completed_monthly",
+        "system_of_record": "native_platform",
+        "mechanism": "dedicated_reconciliation_module_largely_system_driven",
+        "actors": "",
+        "trigger_timing": "regular_monthly_cycle",
+        "controls": "",
+        "exceptions": "some_manual_review_depending_on_bank_integration",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "unknown",
+        "branch_depends_on_uncovered": "unknown"
+      },
+      "code": "",
+      "delta": [
+        "controls",
+        "actors"
+      ],
+      "driving_facet": "controls",
+      "branch_clause": "all bank accounts must be reconciled before the financials are produced",
+      "townsq_clause": "the process is largely system-driven and conducted on a regular monthly cycle",
+      "why": "The question asks about sign-off and secondary review and neither side addresses it — the branch answer states a completion gate rather than an approval step, and the platform answer describes the module without mentioning reviewers. There is no facet pair to compare, so a code either way would be invented.",
+      "also_requires": "",
+      "overturned_by": "",
+      "proximity": "Low (~25%)",
+      "confidence": "Low",
+      "confidence_note": "platform answer is prose with no support level and does not address the dimension asked",
+      "flags": [
+        "both_sides_answer_past_the_question"
+      ],
+      "hitl_candidates": [
+        "AC",
+        "FG"
+      ],
+      "hitl_question": "Does the reconciliation module support a secondary reviewer or approval step, and can it enforce the branch's control that all bank accounts are reconciled before financials are produced? The second half is a real control the branch relies on and the platform answer never mentions it.",
+      "proposed_fg_priority": ""
+    },
+    "Q0167": {
+      "_capability": "Banking",
+      "_dimension": "Transfers & Fraud Controls",
+      "_priority": "P0",
+      "_question": "What dual-control or positive pay controls are in place for outgoing wire transfers and ACH disbursements?",
+      "_sme_marker": "no_prefix",
+      "_confidence_ceiling": "High (explicit negation)",
+      "facets_branch": {
+        "outcome": "outgoing_wires_and_ach_dual_controlled_and_screened",
+        "system_of_record": "pm_system_generates_positive_pay_file_bank_enforces",
+        "mechanism": "system_generated_positive_pay_file_plus_bank_exception_notices",
+        "actors": "authorised_signers_for_wires_accounting_manager_and_above_to_release",
+        "trigger_timing": "after_payments_import_daily",
+        "controls": "dual_authorisation_on_electronic_payments_approval_and_release_segregated_in_system",
+        "exceptions": "secondary_bank_not_on_positive_pay_uses_manual_bank_notification",
+        "evidence": "bank_exception_notice"
+      },
+      "facets_townsq": {
+        "outcome": "controls_exist_but_at_the_bank_not_in_the_platform",
+        "system_of_record": "bank",
+        "mechanism": "user_logs_into_the_bank_portal_wires_cannot_be_executed_in_platform",
+        "actors": "bank_governed",
+        "trigger_timing": "",
+        "controls": "no_built_in_workflows_for_dual_control_or_advanced_payment_safeguards",
+        "exceptions": "ach_facilitated_for_partner_banks_only",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "no",
+        "branch_depends_on_uncovered": "yes: system-generated positive pay files and in-system segregation of approval from release"
+      },
+      "code": "FG",
+      "delta": [
+        "outcome",
+        "system_of_record",
+        "controls",
+        "evidence"
+      ],
+      "driving_facet": "controls",
+      "branch_clause": "Vantaca sends the positive pay file to the bank after payments import",
+      "townsq_clause": "Town Square does not provide built-in workflows for dual control or advanced payment safeguards",
+      "why": "The branch's controls are partly system-side today: the platform generates the positive pay file and enforces that approval and release cannot be performed by the same person. The platform answer states plainly that no built-in dual-control workflow exists and that these safeguards depend on the bank, so both of those system-side controls are lost.",
+      "also_requires": "a compensating manual control for approval-and-release segregation if it cannot be enforced in the platform",
+      "overturned_by": "confirmation that positive pay file generation and an in-system approval-versus-release segregation control are on the roadmap with a date before this branch's go-live",
+      "proximity": "Low (~25%)",
+      "confidence": "High",
+      "confidence_note": "explicit negation on the platform side, independently corroborated by the SME-asserted gap on Q0512",
+      "flags": [
+        "shares_root_dependency_with_Q0512"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": "P0"
+    },
+    "Q0171": {
+      "_capability": "Banking",
+      "_dimension": "Integrations & Pain Points",
+      "_priority": "P2",
+      "_question": "What are the biggest pain points in your bank reconciliation or cash management process today?",
+      "_sme_marker": "speaker_prefix",
+      "_confidence_ceiling": "Medium (in-flight)",
+      "facets_branch": {
+        "outcome": "unreconciled_items_visible_and_automatically_matched",
+        "system_of_record": "pm_system_plus_external_ap_processor",
+        "mechanism": "query_run_by_a_person_for_portfolio_visibility",
+        "actors": "whoever_runs_the_query_property_accountants_work_the_remainder",
+        "trigger_timing": "monthly_with_a_one_day_positive_pay_lag",
+        "controls": "",
+        "exceptions": "5_to_10_percent_manual_void_and_reissue_conflicts_between_the_two_systems",
+        "evidence": "no_company_wide_dashboard"
+      },
+      "facets_townsq": {
+        "outcome": "automated_matching_intended_not_yet_delivered",
+        "system_of_record": "native_platform",
+        "mechanism": "automated_reconciliation_in_development_manual_statement_upload_being_built",
+        "actors": "",
+        "trigger_timing": "",
+        "controls": "",
+        "exceptions": "only_certain_banks_supported",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "no",
+        "branch_depends_on_uncovered": "yes: automated matching and portfolio-level unreconciled visibility"
+      },
+      "code": "FG",
+      "delta": [
+        "outcome",
+        "mechanism",
+        "evidence"
+      ],
+      "driving_facet": "mechanism",
+      "branch_clause": "5 to 10% of transactions each month cannot be auto-reconciled and must be worked manually",
+      "townsq_clause": "Automated bank reconciliation is still in development",
+      "why": "The branch's two live pain points on this dimension — automated matching leaving only a 5-10% manual tail, and portfolio-level visibility of unreconciled items — are exactly the functionality the platform answer describes as still in development with incomplete bank coverage, so the capability is in flight rather than available.",
+      "also_requires": "scope note: four of the seven pain points listed by the branch are artefacts of the processor-to-PM-system integration and are expected to disappear on migration; this gap is scoped to automated matching, portfolio visibility, and the positive-pay day lag",
+      "overturned_by": "a delivery date for automated bank reconciliation and manual statement upload that precedes this branch's go-live, plus confirmation that the branch's banks are in the supported set",
+      "proximity": "Low (~25%)",
+      "confidence": "Medium",
+      "confidence_note": "the platform answer is speaker-prefixed prose with no support-level prefix and gives no date; it also contradicts the affirmative answer on Q0153",
+      "flags": [
+        "capability_in_flight",
+        "sme_contradiction_with_Q0153"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": "P2"
+    },
+    "Q0512": {
+      "_capability": "Check and Payment Controls",
+      "_dimension": "Positive Pay file generation & bank transmission",
+      "_priority": "P1",
+      "_question": "Does your branch use Positive Pay with your bank? If so, how is the Positive Pay file generated after each check run and transmitted to the bank?",
+      "_sme_marker": "classification_leakage",
+      "_confidence_ceiling": "High (explicit negation)",
+      "facets_branch": {
+        "outcome": "positive_pay_file_produced_and_transmitted_per_check_run",
+        "system_of_record": "pm_system_generates_file_bank_validates",
+        "mechanism": "automatic_generation_on_payment_import_then_transmission_to_bank",
+        "actors": "no_human_step_except_on_exception",
+        "trigger_timing": "daily_one_day_behind_posting",
+        "controls": "bank_exception_notice_when_an_item_is_not_on_the_file_standing_ach_authorisation_rules",
+        "exceptions": "secondary_bank_not_yet_covered_forged_signature_not_detectable",
+        "evidence": "exception_notice"
+      },
+      "facets_townsq": {
+        "outcome": "not_produced",
+        "system_of_record": "",
+        "mechanism": "not_supported",
+        "actors": "",
+        "trigger_timing": "",
+        "controls": "",
+        "exceptions": "",
+        "evidence": ""
+      },
+      "entailment": {
+        "townsq_produces_branch_outcome": "no",
+        "branch_depends_on_uncovered": "yes: the entire positive pay file lifecycle"
+      },
+      "code": "FG",
+      "delta": [
+        "outcome",
+        "mechanism",
+        "controls",
+        "evidence"
+      ],
+      "driving_facet": "outcome",
+      "branch_clause": "Vantaca sends the positive pay file to the bank",
+      "townsq_clause": "Positive Pay file generation not currently supported in TownSq",
+      "why": "The SME recorded this as a gap in column I rather than in the classification column; confirming rather than re-deriving. The branch answer independently establishes the dependency — positive pay is live at the primary bank, the file is generated by the system today, and bank exception notices are the fraud control that follows from it.",
+      "also_requires": "an interim manual or bank-portal route for positive pay file submission if go-live precedes delivery",
+      "overturned_by": "delivery of positive pay file generation, or a bank-side arrangement that accepts a file produced outside the platform",
+      "proximity": "No match",
+      "confidence": "High",
+      "confidence_note": "SME-asserted gap with a priority already attached, corroborated by an explicit branch dependency",
+      "flags": [
+        "sme_classification_leakage_confirmed",
+        "shares_root_dependency_with_Q0167"
+      ],
+      "hitl_candidates": [],
+      "hitl_question": "",
+      "proposed_fg_priority": "P1"
+    }
+  }
+}
