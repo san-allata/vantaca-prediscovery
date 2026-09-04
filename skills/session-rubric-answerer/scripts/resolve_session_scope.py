@@ -1,104 +1,122 @@
-import sys, json, os, re
+"""
+resolve_session_scope.py
 
-WORKDIR = os.getcwd()
+Matches a session's Session-Mapping question rows to their exact Master Rubric
+Assessment-sheet rows by normalized text comparison. Never fuzzy-matches --
+an unresolved question is reported, not guessed.
+
+Input (input.json in the working directory), shape:
+{
+  "mapping_rows": [
+    {"planned_question_id": "S3-Q1", "planned_question": "...", "exact_master_rubric_question": "...",
+     "uid": "Q0089", "qid": "6.1.1", "capability": "Accounts Payable", "dimension": "...", "priority": "P0"},
+    ...
+  ],
+  "assessment_questions": [
+    {"row": 5, "discovery_question": "...", "uid": "Q0001"},
+    ...
+  ]
+}
+
+Matching is attempted in order:
+  1. By UID, if both sides carry one and they agree (fastest, most reliable).
+  2. By normalized discovery_question text equality.
+
+Output (printed to stdout as JSON):
+{
+  "resolved": [ {"planned_question_id":..., "planned_question":..., "exact_master_rubric_question":...,
+                  "master_rubric_row":5, "uid":"Q0001", "matched_by":"uid"|"text"} ],
+  "unresolved": [ {"planned_question_id":..., "exact_master_rubric_question":..., "reason":"..."} ]
+}
+"""
+import json
+import re
+import sys
 
 
-def load_input():
-    p = os.path.join(WORKDIR, "input.json")
-    if not os.path.exists(p):
-        print(json.dumps({"error": "input.json not found. Provide live_interview_tracker, rubric_mapping, and assessment_rows."}))
-        sys.exit(1)
-    with open(p, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def norm(s):
-    if s is None:
+def normalize(text):
+    if text is None:
         return ""
-    s = str(s).strip().lower()
-    s = re.sub(r"\s+", " ", s)
-    s = re.sub(r"[\u2018\u2019]", "'", s)
-    s = re.sub(r"[\u201c\u201d]", '"', s)
-    return s
+    t = str(text)
+    # normalize curly quotes/dashes to plain equivalents
+    t = t.replace("\u2019", "'").replace("\u2018", "'")
+    t = t.replace("\u201c", '"').replace("\u201d", '"')
+    t = t.replace("\u2014", "-").replace("\u2013", "-")
+    t = t.strip().lower()
+    t = re.sub(r"\s+", " ", t)
+    t = t.rstrip(" ?.!")
+    return t
 
 
 def main():
-    data = load_input()
-    session = data.get("session")
-    tracker_rows = data.get("live_interview_tracker", [])
-    mapping_rows = data.get("rubric_mapping", [])
-    assessment_rows = data.get("assessment_rows", [])
+    with open("input.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-    id_key = data.get("tracker_id_field", "ID")
-    planned_q_key = data.get("tracker_planned_question_field", "Planned question")
-    must_capture_key = data.get("tracker_must_capture_field", "Must Capture")
+    mapping_rows = data.get("mapping_rows", [])
+    assessment_questions = data.get("assessment_questions", [])
 
-    mapping_id_key = data.get("mapping_id_field", "Planned Question ID")
-    mapping_question_key = data.get("mapping_question_field", "Exact Rubric Question")
-
-    assessment_row_key = data.get("assessment_row_field", "row")
-    assessment_question_key = data.get("assessment_question_field", "Discovery Question")
-
-    session_prefix = f"S{session}-"
-
-    tracker_by_id = {}
-    for t in tracker_rows:
-        tid = str(t.get(id_key, ""))
-        if tid.startswith(session_prefix):
-            tracker_by_id[tid] = {
-                "planned_question": t.get(planned_q_key),
-                "must_capture": t.get(must_capture_key),
-            }
-
-    assessment_by_norm_q = {}
-    duplicate_questions = set()
-    for a in assessment_rows:
-        q = norm(a.get(assessment_question_key))
-        if not q:
-            continue
-        if q in assessment_by_norm_q:
-            duplicate_questions.add(q)
-        assessment_by_norm_q[q] = a.get(assessment_row_key)
+    by_uid = {}
+    by_text = {}
+    for aq in assessment_questions:
+        uid = aq.get("uid")
+        if uid:
+            by_uid[uid] = aq
+        norm = normalize(aq.get("discovery_question"))
+        if norm:
+            by_text.setdefault(norm, []).append(aq)
 
     resolved = []
     unresolved = []
 
-    for m in mapping_rows:
-        pid = str(m.get(mapping_id_key, ""))
-        if not pid.startswith(session_prefix):
-            continue
-        exact_q = m.get(mapping_question_key)
-        ctx = tracker_by_id.get(pid, {})
-        row = assessment_by_norm_q.get(norm(exact_q))
-        record = {
-            "planned_question_id": pid,
-            "planned_question": ctx.get("planned_question"),
-            "must_capture": ctx.get("must_capture"),
-            "exact_rubric_question": exact_q,
-            "master_rubric_row": row,
-        }
-        if row is None:
-            unresolved.append(record)
+    for mr in mapping_rows:
+        pqid = mr.get("planned_question_id")
+        exact_q = mr.get("exact_master_rubric_question")
+        uid = mr.get("uid")
+
+        match = None
+        matched_by = None
+
+        if uid and uid in by_uid:
+            match = by_uid[uid]
+            matched_by = "uid"
         else:
-            resolved.append(record)
+            norm = normalize(exact_q)
+            candidates = by_text.get(norm, [])
+            if len(candidates) == 1:
+                match = candidates[0]
+                matched_by = "text"
+            elif len(candidates) > 1:
+                # ambiguous text match -- do not guess
+                unresolved.append({
+                    "planned_question_id": pqid,
+                    "exact_master_rubric_question": exact_q,
+                    "reason": f"ambiguous: {len(candidates)} rows share this normalized question text"
+                })
+                continue
 
-    result = {
-        "session": session,
-        "planned_question_ids_in_scope": sorted(tracker_by_id.keys()),
-        "mapped_question_count": len(resolved) + len(unresolved),
-        "resolved_count": len(resolved),
-        "unresolved_count": len(unresolved),
-        "ambiguous_duplicate_questions_in_assessment": sorted(duplicate_questions),
-        "resolved": resolved,
-        "unresolved": unresolved,
-    }
+        if match is None:
+            unresolved.append({
+                "planned_question_id": pqid,
+                "exact_master_rubric_question": exact_q,
+                "reason": "no normalized text match and no UID match found in Master Rubric"
+            })
+            continue
 
-    out_path = os.path.join(WORKDIR, f"session_{session}_scope.json")
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
+        resolved.append({
+            "planned_question_id": pqid,
+            "planned_question": mr.get("planned_question"),
+            "exact_master_rubric_question": exact_q,
+            "master_rubric_row": match.get("row"),
+            "uid": match.get("uid"),
+            "matched_by": matched_by,
+        })
 
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    print(json.dumps({"resolved": resolved, "unresolved": unresolved}, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        sys.exit(1)

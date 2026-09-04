@@ -1,3 +1,8 @@
+---
+name: excel-qa-processor
+description: Process Excel assessment files by extracting complete datasets without pre-filtering in SQL, then use jq to filter by session number (Column A values). Handles multi-session workbooks, detects actual column structure (column_1, column_2, etc.), extracts all rows starting from row 5, and outputs session-filtered questions with accurate question counts per session. Use this skill when processing assessment workbooks where SQL row/column references fail—the skill will export raw JSON and use jq for safe filtering.
+---
+
 # Excel QA Processor — Fixed for Column Detection & jq Filtering
 
 ## Purpose

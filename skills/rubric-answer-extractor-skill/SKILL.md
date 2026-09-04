@@ -1,4 +1,9 @@
-# Rubric Answer Extractor — Integrated Version
+---
+name: rubric-answer-extractor-skill
+description: Extract answers from source documents and populate rubric questions with full source attribution and gap tracking. Use this skill when you need to answer discovery questions in an assessment rubric by grounding responses in attached source documents (PDFs, transcripts, presentations, spreadsheets, Word docs, images), maintaining strict evidentiary standards, and producing a `branch_answer` string in the exact required cell format (answer + Source line, plus a GAPS line for partial answers). Works with both Excel (.xlsx) rubrics and JSON assessment templates. Pairs with json-rubric-tools-skill's patch_xlsx_inplace.py for in-place Excel delivery (preserving all original sheets) and json-question-answer-patcher for JSON template updates.
+---
+
+# Rubric Answer Extractor
 
 ## Purpose
 
