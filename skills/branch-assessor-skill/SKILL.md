@@ -1,8 +1,3 @@
----
-name: branch-assessor-skill
-description: Classify branch readiness assessment answers in the TownSq/Associa migration rubric workbook. Use this skill whenever the user asks to classify branch answers, compare branch answers against Associa/TownSq answers, fill in the Classification column, assess capability proximity or match level, score readiness, or process the branch assessment rubric (ExampleRubric.xlsx or similar). Trigger on mentions of "branch answers", "Associa answers", "TownSq capability", "PC/AC/FB classification", "readiness rubric", "capability proximity", or "assessor notes" — even if the user doesn't say "classify" explicitly.
----
-
 # Branch Readiness Classifier
 
 Compare the branch's **current state** (column H) against TownSq's **actual capability** (column I) and record the *gap between them* as a classification in column J, with the reasoning in column L.
