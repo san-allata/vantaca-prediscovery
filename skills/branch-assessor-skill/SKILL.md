@@ -117,10 +117,17 @@ DELTA: <which facets differ — outcome / mechanism / actors / timing / controls
 WHY <CODE>: <one sentence>
 Also requires: <secondary config or process change, if any>
 Proximity: <Exact match | High (~75%) | Moderate (~50%) | Low (~25%) | No match>.
-Confidence: <High | Medium | Low> (<what is solid; what is not>)
+Quote or tightly paraphrase both sides. No adjectives about fit quality — state what matches and what doesn't. `Confidence: Low` is a legitimate and useful result.
 ```
 
-Quote or tightly paraphrase both sides. No adjectives about fit quality — state what matches and what doesn't. `Confidence: Low` is a legitimate and useful result.
+## Confidence Level (new column at the end)
+Put any value of <High | Medium | Low> (<what is solid; what is not>)
+
+## Status (new column after Confidente Level)
+Blank
+
+## Approved (new column at the end)
+Blank
 
 ## Execution workflow
 
