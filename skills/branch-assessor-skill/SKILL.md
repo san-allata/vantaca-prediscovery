@@ -6,7 +6,95 @@ This is not text similarity. Two answers can share almost no vocabulary and be a
 
 The skill is branch-agnostic and rubric-version-agnostic. Row counts, fill levels, and which rows are blocked differ per branch and per rubric revision, so **every quantity is measured at runtime** in Step 1 rather than assumed.
 
-## Workbook contract
+---
+
+## ⚠️ Greg-Approved Domain Rules (Highest Priority — Consult Before Classifying)
+
+These rules are derived from direct SME review sessions with Greg Hamm (Rubric Deep Dive sessions, Sept 2026). They **override** the general decision ladder for the topics they cover. Check this section first before applying the ladder.
+
+### GR-1: Integration = AC, Not FB
+
+> *"Very few were feature backlog… most of them were because it's either StrongRoom or VendorSmart. They were not — they were classified as configuration change."*
+> — Greg Hamm (09/16/2026)
+
+**Rule:** If a capability is delivered through a known, supported Associa integration partner — **StrongRoom** (AP/workflow automation), **VendorSmart/VendorSpark** (cache management, payables routing), **Stripe** (payment processing), or other Associa-sanctioned integrations — the correct classification is **AC** (requires configuration/onboarding of the integration), **not FB**.
+
+Only classify as FB if:
+- Greg or another authoritative SME has explicitly called the specific item a gap, OR
+- The integration definitively does not cover the branch's required sub-feature
+
+Do **not** classify as FB simply because native Vantaca does not have the capability — check whether an integration covers it first.
+
+### GR-2: Community Management Context — Not Business Client Context
+
+> *"Some of them were blatantly wrong because I think it was comparing with business versus community."*
+> — Greg Hamm, confirmed (09/15/2026)
+
+**Rule:** All classifications must be scoped to **HOA/community management** context (the branch manages homeowner associations and communities). Do not evaluate or cite capabilities that are relevant only to commercial business clients. If the TownSq capability column references a feature that applies to business clients only, note this and treat the community-context capability as the operative comparison.
+
+### GR-3: StrongRoom vs. Native Vantaca — These Are Different Systems
+
+> *"We want to know Vantaca's inherent workflows — identical to this [StrongRoom workflow]."*
+> — Sanjeev Sharma (09/21/2026); *"StrongRoom was my very first project for Associa."* — Greg Hamm (09/21/2026)
+
+**Rule:** When classifying AP-related questions, explicitly distinguish the system of record:
+- **StrongRoom** = Associa's third-party AP workflow automation platform (invoice routing, approval chains, pre-payment controls). It is *not* Vantaca-native.
+- **VendorSmart/VendorSpark** = Associa's emerging in-house AP system (cache management, payables routing). Migration from StrongRoom → VendorSmart is ongoing and will take years.
+- **Native Vantaca (WorkPoints+)** = the core accounting engine.
+
+For AP questions: evaluate whether the *branch's current StrongRoom workflow* has a functional equivalent in *native Vantaca or VendorSmart*. If StrongRoom → StrongRoom (no change), that is AC. If StrongRoom → VendorSmart, assess case by case.
+
+### GR-4: Exception Automation = FB on top of an AC Base
+
+> *"The process is one-to-one. There's configuration to it, but then how it's implemented every month — that is going to be our feature gap, that we want to be able to automate that."*
+> — Greg Hamm (09/21/2026)
+
+**Rule:** When a base process is 1-to-1 and configuration-equivalent (→ AC), but the branch also requires **automated exception surfacing** (e.g., auto-detect expired recurring charges, auto-alert on delivery method changes, auto-notify when homeowner consent changes), the automation layer is a **separate FB** — even though the underlying configuration is AC.
+
+Record both in the assessment:
+- Classification = **AC** (base process)
+- Assessor Notes must include: `Also requires: [automated exception detection — FB gap]`
+- Add a companion FB row or flag in notes for backlog tracking
+
+### GR-5: Third-Party External Access / Portal Retirement = Always FB
+
+> *"It's not just rebranding, it's more about changing the whole process… that's definitely a feature backlog item."*
+> — Greg Hamm (09/14/2026), on auditor/third-party data access
+
+**Rule:** Any requirement to give external parties (auditors, collections agencies, third-party data consumers) access via a dedicated portal — where the current portal must be retired and replaced with a new one — is always **FB**. This is not a branding/config change; it requires a full build.
+
+### GR-6: No "Non-Negotiable" Language
+
+> *"Non-negotiable items, they are negotiable."*
+> — Sanjeev Sharma, confirming Greg's position (09/15/2026)
+
+**Rule:** Do not use the term "non-negotiable" in any assessor note or classification rationale. Do not treat any item as an immovable FB blocker without Greg's explicit, on-record confirmation. Items previously labeled non-negotiable should be re-examined as potential ACs or PCs.
+
+### GR-7: Specific Greg-Confirmed Capabilities (Use as AC Precedents)
+
+These topics were explicitly reviewed and confirmed as supported by Greg Hamm. Classify as **AC** (or AC+PC where noted) when these exact topics appear in branch answers:
+
+| Topic | Greg's Confirmation | Classification |
+|---|---|---|
+| Billing frequencies (monthly/quarterly/semi-annual/annual) | "Those are the same" | AC |
+| Billing start dates / fiscal year flexibility | "They can start anytime" | AC |
+| Homeowner self-service payment (balance pay) | "That's a one-to-one" | AC |
+| AR exception handling / manual review workflow | "That's about right" | AC |
+| Financial statement distribution & tracking | "We've been doing that since 2008" | AC |
+| Chargebacks (90-day dispute window) | "Already supported very well" | AC |
+| Assessment mid-year changes (end current, start new) | Confirmed supported | AC |
+| Direct debit consent & recurring charge updates | Consent-based, notifications supported | AC + PC (comms) |
+| StrongRoom AP workflow (StrongRoom → StrongRoom) | "Exactly the same processes" | AC |
+| VendorSmart cache management module | "There is a specific cache management module in VendorSpark, which can be configured" | AC |
+| Stop payments / voiding checks | Supported with bank integration | AC (bank config) |
+| Credit reporting — native | "We don't do anything native" | FB if no integration |
+| Credit reporting — third-party | "We do a data extract and send to the third party" | AC if integration exists |
+| Third-party auditor data access (portal retirement) | "That's definitely a feature backlog item" | FB |
+| Recurring charge exception automation | "That is going to be our feature gap" | FB (on top of AC base) |
+
+---
+
+## Workbook Contract
 
 Work only on the **Assessment** sheet. Headers on **row 4**; data starts at **row 5** and runs contiguously to the last row carrying a Discovery Question.
 
@@ -28,7 +116,9 @@ Rows whose Dimension is prefixed `  ↳ ` are **full standalone questions, not s
 
 **The J dropdown does not protect you.** In this rubric family the `PC,AC,FB,NA` validation covers only a leading band of rows, and the same list is also misapplied to part of column I — so many rows have no dropdown at all and Excel will not reject a bad value. Validate code strings in your own code before writing, and report the validation coverage you found.
 
-## Reading column I: the prefix is a hypothesis, not the evidence
+---
+
+## Reading Column I: The Prefix Is a Hypothesis, Not the Evidence
 
 SME answers often open with a capability prefix, but a large share of cells carry none, and some carry markers that look structural and aren't. Profile the actual distribution in Step 1; never assume it.
 
@@ -50,49 +140,62 @@ SME answers often open with a capability prefix, but a large share of cells carr
 - **Bare-prefix stubs.** A cell containing only `Change in-progress`, or only `After config`, with no sentence behind it, is not a capability statement. **Treat as blocked, exactly like TBD.** Detect by cell length, not by prefix.
 - **Classification leakage.** Occasionally an SME writes the verdict itself into column I (`FB — <capability> not currently supported`, sometimes with a priority attached). Treat as an SME-asserted classification to confirm and cite rather than re-derive, and report it — the judgment belongs in column J.
 
-## Method: decompose, then compare facet by facet
+---
+
+## Method: Decompose, Then Compare Facet by Facet
 
 Do not compare paragraph to paragraph. Reduce each side to the facets below and note which ones differ. The classification falls out of *which* facets diverge, not how much the text differs.
 
 | Facet | Question |
 |---|---|
 | **Outcome** | What business result is produced? |
-| **System of record** | Where does the authoritative data live? |
+| **System of record** | Where does the authoritative data live? (Identify: native Vantaca / StrongRoom / VendorSmart / other) |
 | **Mechanism** | Automated, batch, manual, integration, import? |
 | **Actors** | Who performs and who approves — roles, not names |
 | **Trigger & timing** | Event-driven, scheduled, monthly close, on demand? |
 | **Controls** | Approvals, thresholds, segregation of duties, dual sign-off |
-| **Exceptions** | NSF, reversals, mid-year switches, legal hold, edge cases |
+| **Exceptions** | NSF, reversals, mid-year switches, legal hold, edge cases; and whether *automated* exception surfacing is required |
 | **Evidence** | What audit trail or artifact is produced? |
 
 Divergence in **outcome** or **exceptions** points to FB. Divergence in **actors, timing, or controls** with the outcome intact points to PC. Convergence on everything except **mechanism setup** points to AC.
 
-## Decision ladder
+> **System-of-record note:** Always name the system explicitly in the facet (e.g., "StrongRoom manages pre-payment AP routing"). This prevents conflation of StrongRoom, VendorSmart, and native Vantaca capabilities — a known source of misclassification (GR-3).
+
+---
+
+## Decision Ladder
 
 Walk it in order; stop at the first test that resolves.
 
+0. **⚠️ Check Greg-Approved Domain Rules first.** If the topic matches a GR-1 through GR-7 ruling, apply it and record the ruling number in assessor notes (e.g., `[GR-1: Integration = AC]`). Skip the rest of the ladder.
 1. **Is either side unreadable?** H empty, or I is `TBD` or a bare-prefix stub → **blocked**, no code. Report; do not classify.
 2. **Does the branch do this at all?** H states positively that they don't, or it doesn't apply to their portfolio → **NA**.
-3. **Can TownSq produce the required outcome today?** Evidence in I says no, or says `Partial` where the missing part covers something H shows the branch actually depends on → **FB**.
-4. **Is the capability in flight rather than live?** `Change in-progress`, "in development", "on the roadmap" → **FB**, unless I explicitly states availability before this branch's go-live. Either way, name the dependency and the date in L.
-5. **Capability exists. Must the branch change how it works?**
+3. **Is this capability delivered by a known Associa integration (StrongRoom, VendorSmart, Stripe)?** → **AC** unless the specific sub-feature is confirmed as a gap by an authoritative SME. Record `[GR-1]` in notes.
+4. **Can TownSq (native Vantaca) produce the required outcome today?** Evidence in I says no, or says `Partial` where the missing part covers something H shows the branch actually depends on → **FB**.
+5. **Is the capability in flight rather than live?** `Change in-progress`, "in development", "on the roadmap" → **FB**, unless I explicitly states availability before this branch's go-live. Either way, name the dependency and the date in L.
+6. **Capability exists. Must the branch change how it works?**
    - Only the system needs setting up; the branch's steps, roles, and timing survive → **AC**
    - The branch's steps, roles, approvals, or timing must change → **PC**
-6. **Still torn between two codes** → **HITL**: leave J empty, write both candidates and the deciding question in L, list the row for human review. A wrong code costs more than an escalated one.
+7. **Does the branch additionally require automated exception surfacing on an otherwise AC process?** → Classify base as **AC**; add a companion **FB** flag in Assessor Notes for the automation layer. Record `[GR-4]` in notes.
+8. **Still torn between two codes** → **HITL**: leave J empty, write both candidates and the deciding question in L, list the row for human review. A wrong code costs more than an escalated one.
 
-### PC and AC are not mutually exclusive
+### PC and AC Are Not Mutually Exclusive
 
 Most real rows need both — a configuration *and* a behavior change. The rubric permits one code, so apply the **dominant-blocker rule**: assign the code for the change that blocks go-live if it does not happen, and record the other explicitly in L as `Also requires: <config or process change>`. Without that clause the Onboarding List loses config work that genuinely existed.
 
-### Bias toward FB when capability existence is unproven
+### Refined FB Bias Rule
 
-The two error directions are not equally priced. A false FB surfaces in backlog grooming and is removed within days. A false AC or PC hides a build need until UAT, after the readiness score has been reported to the client. So when I does not affirmatively establish that the capability exists, classify **FB** and state what evidence would overturn it. Never infer capability from a product's general reputation, from another row, or from what TownSq "surely must" support.
+The two error directions are not equally priced. A false FB surfaces in backlog grooming and is removed within days. A false AC or PC hides a build need until UAT.
 
-### NA requires positive evidence
+**However:** The FB-bias rule applies only when native Vantaca capability is absent *and* no supported integration covers the gap. Do **not** classify as FB simply because the capability is not native — always check for integration coverage first (GR-1). When I does not affirmatively establish the capability *and* no integration applies, classify **FB** and state what evidence would overturn it.
+
+### NA Requires Positive Evidence
 
 `NA` removes the row from the readiness denominator, making it the one code that can quietly improve the score. **Silence is not NA.** If H simply doesn't mention the topic, that is an unanswered row, not an inapplicable one. Require a statement in H that the branch does not do this, or that it does not apply.
 
-## Capability proximity verdict
+---
+
+## Capability Proximity Verdict
 
 Every classified row gets one, judged from facet overlap — not from the prefix, not from text similarity.
 
@@ -106,30 +209,37 @@ Every classified row gets one, judged from facet overlap — not from the prefix
 
 A `Native` capability the branch handles completely differently is still a Moderate or Low proximity **PC**.
 
-## Assessor note format (column L)
+---
+
+## Assessor Note Format (Column L)
 
 Auditable by design: the note must let a reader disagree with you without re-reading both cells.
 
 ```
 BRANCH: <the clause from H that drives the code>
-TOWNSQ: <the clause from I that drives the code>
+TOWNSQ: <the clause from I that drives the code; name the system — native Vantaca / StrongRoom / VendorSmart / integration>
 DELTA: <which facets differ — outcome / mechanism / actors / timing / controls / exceptions / evidence>
 WHY <CODE>: <one sentence>
-Also requires: <secondary config or process change, if any>
+Also requires: <secondary config or process change, or FB automation layer, if any>
+[GR-N: <Greg-Approved Rule applied, if any>]
 Proximity: <Exact match | High (~75%) | Moderate (~50%) | Low (~25%) | No match>.
-Quote or tightly paraphrase both sides. No adjectives about fit quality — state what matches and what doesn't. `Confidence: Low` is a legitimate and useful result.
+Confidence: <High | Medium | Low> (<what is solid; what is not>)
 ```
 
-## Confidence Level (new column at the end)
-Put any value of <High | Medium | Low> (<what is solid; what is not>)
+Quote or tightly paraphrase both sides. No adjectives about fit quality — state what matches and what doesn't. `Confidence: Low` is a legitimate and useful result. Do not use the phrase "non-negotiable" anywhere in notes (GR-6).
 
-## Status (new column after Confidente Level)
+## Confidence Level (new column at the end)
+Put any value of `High | Medium | Low` (`<what is solid; what is not>`)
+
+## Status (new column after Confidence Level)
 Blank
 
 ## Approved (new column at the end)
 Blank
 
-## Execution workflow
+---
+
+## Execution Workflow
 
 1. **Profile the workbook before deciding anything.** Measure, don't assume — then report:
    - last data row, question-row count, capability count
@@ -167,6 +277,8 @@ Blank
 
 10. **Report** counts by domain and code, the HITL and blocked lists, and a readiness figure *only for domains that are fully answered and fully classified*.
 
+---
+
 ## Guardrails
 
 - **Never classify on column I alone.** No branch answer means no gap to measure.
@@ -176,3 +288,6 @@ Blank
 - **Never overwrite an existing assessor note** without confirmation; if appending, separate with ` | `.
 - **Work on a copy** in the working directory and deliver the copy.
 - **Threaded comments do not survive** an openpyxl round-trip. If the workbook carries a comments part, say so at delivery.
+- **Never use the phrase "non-negotiable"** in assessor notes or classification rationale (GR-6).
+- **Always name the system of record** (native Vantaca / StrongRoom / VendorSmart / other integration) in the TownSq facet of every assessor note.
+- **Check Greg-Approved Domain Rules (GR-1 through GR-7) before applying the decision ladder.** These are higher-priority than general heuristics.
