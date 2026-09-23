@@ -1,14 +1,14 @@
 # Session Processing Guide
 **Canonical operational guide for session-rubric-answerer**
-Last updated: 2026-09-22 — added Proximity column, HITL-in-notes rule, Recommendation-in-notes rule
+Last updated: 2026-09-22 — fixed HITL cell value: blank (not "HITL"), amber fill only
 
 ---
 
 ## 1. Overview
 
-This guide documents the proven end-to-end pattern for processing any discovery session transcript against the Master Rubric. Follow it exactly before improvising.
+This guide documents the proven end-to-end pattern for processing any discovery session transcript against the Master Rubric. It was written after a live Session 6 run that encountered and resolved three distinct failure modes, then updated with classification corrections from four Greg Hamm SME review sessions. Follow it exactly before improvising.
 
-**Output:** One xlsx workbook per capability-group batch, each containing 15 columns: rubric metadata, branch answers, TownSq capability, classification, assessor notes, and proximity.
+**Output:** One xlsx workbook per capability-group batch (15 columns). Every workbook must be delivered as a **clickable download link** in chat via `render_content`.
 
 ---
 
@@ -56,7 +56,7 @@ LIMIT 100
 
 If column names differ, re-run `getSpreadsheetInfo` and adjust.
 
-**Expected row count per session:** 80–110 rows typical. If result is 0, check the session number filter value — the column may store session as a number not a string.
+**Expected row count per session:** 80–110 rows typical. If result is 0, check the session number filter value.
 
 ### Step 2 — Load Rubric Index
 
@@ -72,7 +72,7 @@ Parse the returned JSON array. Pass as `rubric_index` in the resolve script inpu
 read_skill_resource(skillId, "references/greg_approved_classifications.md")
 ```
 
-Hold in context for the full run. Before extracting or classifying any row, check whether the topic matches a Greg-confirmed ruling. If it does, use that ruling and note the rule reference (GR-N) in the assessor notes.
+Hold in context for the full run.
 
 ### Step 3 — Resolve Session Scope
 
@@ -85,11 +85,11 @@ Call `resolve_session_scope_v2.py`:
 }
 ```
 
-Expected output: `{ "resolved": [...], "unresolved": [...] }`. Report any unresolved rows before proceeding.
+Report any unresolved rows before proceeding.
 
 ### Step 4 — Fetch Transcript Evidence (Batched by Topic)
 
-**Do NOT attempt to load the full VTT transcript in one call.** Use 3–4 targeted `get_information_from_dataProduct` calls, each covering one topic cluster.
+**Do NOT load the full VTT in one call.** Use 3–4 targeted `get_information_from_dataProduct` calls per topic cluster.
 
 Example split for a Financial Operations session:
 1. "management fee configuration, contract storage, fee types, rate changes, dual-sided accounting"
@@ -97,73 +97,125 @@ Example split for a Financial Operations session:
 3. "supply charges, reimbursables, utility invoices, amenity rentals, security deposits"
 4. "audit, CPA, tax filings, engagement letters, IRS, extensions"
 
-Adjust topic clusters to match the session's capability areas. Hold all retrieved evidence in context.
+**Context scoping (GR-2):** Interpret all evidence through the lens of **HOA/community management**.
 
-**Context scoping (GR-2):** Interpret all evidence through the lens of **HOA/community management** — not commercial business client context. Note any context mismatch.
-
-**System-of-record tagging (GR-3):** Tag each piece of evidence with the system it refers to: `[StrongRoom]`, `[VendorSmart]`, `[native Vantaca]`, `[Stripe]`, `[other]`. This tag must appear in the Source line of the branch answer.
+**System-of-record tagging (GR-3):** Tag each evidence piece: `[StrongRoom]`, `[VendorSmart]`, `[native Vantaca]`, `[Stripe]`, `[other]`. This tag must appear in the Source line.
 
 ### Step 5 — Split Rows into Capability-Group Batches
 
 **Rule: ≤ 30 rows per batch.**
 
-Group rows by capability name (not cap number — cap numbers can be stored inconsistently). Typical splits:
+Group rows by capability name. Typical splits:
 
 | Batch | Capabilities | Approx rows |
 |---|---|---|
 | Run 1 | Management Fee Administration (6.15) | 35–51 |
-| Run 2 | Supply Charges (6.8) + Reimbursables/Fee Mgmt (6.9) + Systems (6.12.9) | 25–35 |
-| Run 3 | Amenity Rentals & Security Deposits (6.12) + Audit/Tax/CPA (6.10) | 20–30 |
+| Run 2 | Supply Charges (6.8) + Reimbursables (6.9) + Systems (6.12.9) | 25–35 |
+| Run 3 | Amenity Rentals (6.12) + Audit/Tax/CPA (6.10) | 20–30 |
 
 If a single capability group > 30 rows, split alphabetically by dimension.
 
 ### Step 6 — Extract Branch Answers
 
 For each row:
-1. Check `references/greg_approved_classifications.md` — if topic has a Greg-confirmed answer, use it as authoritative context
-2. Search retrieved transcript evidence for the question topic
-3. **Scope to community management context** (GR-2)
-4. **Tag the system of record** in the Source line (GR-3)
+1. Check `references/greg_approved_classifications.md` — if topic matches a Greg ruling, use it as authoritative context
+2. Search retrieved transcript evidence
+3. Scope to community management context (GR-2)
+4. Tag system of record in Source line (GR-3)
 5. Write `branch_answer`: `"{answer}\n\nSource: {file} [{timestamp}, {speaker}] [system: {system-of-record}]"`
 6. If partial: append `"\n\nGAPS: {what is missing}"`
 7. If not found: `"Not Found — {brief reason}\n\nSource: {file} (full transcript reviewed; topic not addressed)\n\nGAPS: {topic} not discussed in this session"`
 
-**HITL threshold:** When transcript is silent AND TownSq capability references a third-party integration (not native Vantaca), the integration's applicability is unconfirmed. Leave Classification **blank** and write `[HITL: integration applicability unconfirmed — transcript silent]` in Assessor Notes. Do not write "HITL" in the Classification column.
+**HITL threshold:** When transcript is silent AND capability references a third-party integration (not native Vantaca), set `"classification": ""` and `"hitl": true`. Write `[HITL: integration applicability unconfirmed — transcript silent]` in `assessor_notes`.
 
 ### Step 7 — Classify Each Row
 
-**Before the decision ladder, check `references/greg_approved_classifications.md`.** If the topic matches a Greg ruling, apply it and record the GR-N reference in assessor notes.
+Check `references/greg_approved_classifications.md` first. Then apply the decision ladder:
 
-Decision ladder (walk in order, stop at first match):
-0. Greg-Approved Domain Rule applies? → Use it, record GR-N
-1. Either side unreadable / Not Found? → Leave Classification **blank**; write `[HITL: <reason>]` in Assessor Notes
-2. Branch explicitly doesn't do this? → **NA**
-3. Capability covered by StrongRoom, VendorSmart, or Stripe? → **AC**; record `[GR-1]`
-4. TownSq native cannot produce the outcome today? → **FB**
-5. Capability in flight / not yet live? → **FB**
-6. Only system setup needed; branch steps survive? → **AC**
-7. Branch steps/roles/approvals must change? → **PC**
-8. Base = AC but automated exception surfacing also required? → **AC**; add `[GR-4: exception automation FB gap — <description>]` in notes
-9. Still torn? → Leave Classification **blank**; write `[HITL: <candidates and deciding question>]` in Assessor Notes
+0. Greg-Approved Domain Rule applies? → Use it, record GR-N in notes
+1. Either side unreadable / Not Found? → `"classification": ""`, `"hitl": true`, write `[HITL: <reason>]` in notes
+2. Branch explicitly doesn't do this? → `"NA"`
+3. Capability covered by StrongRoom, VendorSmart, or Stripe? → `"AC"`, record `[GR-1]`
+4. TownSq native cannot produce the outcome today? → `"FB"`
+5. Capability in flight / not yet live? → `"FB"`; name dependency and date
+6. Only system setup needed; branch steps survive? → `"AC"`
+7. Branch steps/roles/approvals must change? → `"PC"`
+8. Base = AC but automated exception surfacing required? → `"AC"`, add `[GR-4: exception automation FB gap — <description>]` in notes
+9. Still torn? → `"classification": ""`, `"hitl": true`, write `[HITL: <reason>]` in notes
 
-**Valid Classification values: `PC`, `AC`, `FB`, `NA`, or blank.**
-**"HITL" is NEVER a valid Classification value.** It always goes in Assessor Notes.
+---
 
-**Revised FB-bias:** Applies only when native Vantaca cannot support the outcome AND no integration covers it.
+## ⚠️ Classification Field Contract (MANDATORY)
 
-**Improvement recommendations:** When you spot a potential upsell, process improvement, or platform capability that exceeds what the branch currently does, add `[RECOMMENDATION: <text>]` in Assessor Notes. Do not create a separate field or column.
+The `classification` field in every row JSON **must be one of:**
+
+| Value | Meaning |
+|---|---|
+| `"PC"` | Process Change |
+| `"AC"` | Adoption / Config |
+| `"FB"` | Feature Backlog |
+| `"NA"` | Not Applicable |
+| `""` | Human review needed (HITL) |
+
+**`"HITL"` is NOT a valid value for the `classification` field.** It will be stripped by the script.
+
+For rows requiring human review:
+- Set `"classification": ""` (empty string)
+- Set `"hitl": true`
+- Write `[HITL: <reason>]` in `assessor_notes`
+- Leave `"proximity": ""`
+
+The build script applies amber fill to the Classification cell automatically for HITL rows. **The cell value will be blank — no text is written into it.** The amber color is the only visual indicator.
+
+**This is enforced in the script:** any value not in `{"PC", "AC", "FB", "NA", ""}` is silently forced to `""` with amber fill.
+
+---
 
 ### Step 8 — Build Assessment xlsx (BATCHED via execute_code)
 
+**This is the critical step where previous single-payload attempts failed. The fix is mandatory.**
+
+#### Why batching is required
+
+| Attempt | Failure mode |
+|---|---|
+| `run_skill_script` with full 100-row inputData | Payload too large — response cut off |
+| `execute_code` with inline Python string literals for 100 rows | Script body too large — sandbox timeout |
+| `execute_code` with `input` JSON param for 100 rows | JSON input too large to marshal inline |
+| `execute_code` with ≤ 30 rows as `input` JSON | ✅ **Works reliably** |
+
+#### Canonical build pattern (per batch)
+
+```python
+# In execute_code, pass rows as the `input` parameter (≤ 30 rows)
+# The sandbox writes input to input.json automatically
+# Script reads input.json and writes xlsx
+
+import json, openpyxl
+from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.utils import get_column_letter
+
+with open('input.json') as f:
+    data = json.load(f)
+rows = data['rows']
+batch_name = data.get('batch_name', 'Batch')
+
+# ... (see build_assessment_batch.py for full implementation)
+```
+
 **Use `scripts/build_assessment_batch.py` ONLY.** Never use deprecated snapshot scripts.
 
-For each batch (≤ 30 rows), call `execute_code` (Python) passing rows as the `input` JSON parameter. The script writes `Assessment_Run<N>_<CapGroup>.xlsx`.
+For each batch (≤ 30 rows), call `execute_code` (Python) passing rows as the `input` JSON parameter.
 
 **If `execute_code` times out:** reduce batch size from 30 to 20 rows and retry.
 
+After each `execute_code` call:
+- `outputFiles` non-empty → proceed to Step 9 delivery
+- `outputFiles` empty → file NOT captured; do NOT claim a link; retry
+
 #### Column schema (15 columns, fixed order)
 
-| # | Column | Valid values / notes |
+| # | Column | Valid values |
 |---|---|---|
 | 1 | UID | |
 | 2 | QID | |
@@ -177,25 +229,23 @@ For each batch (≤ 30 rows), call `execute_code` (Python) passing rows as the `
 | 10 | Discovery Question | |
 | 11 | Branch Answer | |
 | 12 | TownSq Capability | |
-| 13 | Classification | `PC`, `AC`, `FB`, `NA`, or **blank**. Never "HITL". |
-| 14 | Assessor Notes | Free text. Contains `[HITL: ...]`, `[RECOMMENDATION: ...]`, `[GR-N: ...]` tags as applicable. |
-| 15 | Proximity | `Exact match`, `High (~75%)`, `Moderate (~50%)`, `Low (~25%)`, `No match`, or blank (HITL rows). |
+| 13 | Classification | `PC`, `AC`, `FB`, `NA`, or **blank**. Never `HITL`. Amber fill = HITL. |
+| 14 | Assessor Notes | `[HITL: ...]`, `[RECOMMENDATION: ...]`, `[GR-N: ...]` as applicable. |
+| 15 | Proximity | `Exact match`, `High (~75%)`, `Moderate (~50%)`, `Low (~25%)`, `No match`, or blank. |
 
 #### Classification color map (column 13)
 
-| Code | Fill color | Font |
+| Code | Fill | Font |
 |---|---|---|
 | AC | #70AD47 (green) | White bold |
 | FB | #FF0000 (red) | White bold |
 | PC | #4472C4 (blue) | White bold |
 | NA | #FFD966 (yellow) | Black bold |
-| blank (HITL) | #FFC000 (amber) | Black bold — write "HITL" as display text in the cell, but do NOT store it in the classification field of the row data |
-
-**Important:** For rows where Classification is blank (HITL), the xlsx builder displays "HITL" in the cell with amber fill as a visual indicator. The underlying data field `classification` remains empty/null.
+| blank/HITL | #FFC000 (amber) | — cell is **blank** (no text); amber fill is the only indicator |
 
 #### Proximity color map (column 15)
 
-| Value | Fill color | Font |
+| Value | Fill | Font |
 |---|---|---|
 | Exact match | #70AD47 (green) | White bold |
 | High (~75%) | #A9D18E (light green) | Black bold |
@@ -207,35 +257,65 @@ For each batch (≤ 30 rows), call `execute_code` (Python) passing rows as the `
 #### Other formatting constants
 
 - Header fill: #1F4E79 (dark blue), white bold font, size 11
-- Freeze panes: A2
-- Wrap text: all cells
-- Vertical align: top (data rows)
-- Row height: 80pt (data rows), 30pt (header)
+- Freeze panes: A2 | Wrap text: all cells | Vertical align: top
+- Row height: 80pt (data), 30pt (header)
 - Column widths: [10, 10, 8, 14, 18, 8, 22, 28, 9, 45, 55, 45, 14, 60, 18]
 - Sheet name: `Assessment`
 
 #### Output file naming
 
 ```
-Assessment_Run<N>_<CapabilityGroup>.xlsx
+Assessment_<batch_name>.xlsx
+```
+Examples: `Assessment_Run1_MgmtFee.xlsx`, `Assessment_Run2_Supply_Reimbursables.xlsx`
+
+### Step 9 — Deliver Files and Report
+
+**Mandatory for every batch. Never skip.**
+
+Immediately after `execute_code` confirms the file was written, deliver via `render_content`:
+
+```
+render_content(
+  displayType: "download",
+  title: "Assessment_<batch_name>.xlsx",
+  content: <base64-encoded file bytes from outputFiles>,
+  metadata: {
+    filename: "Assessment_<batch_name>.xlsx",
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  }
+)
 ```
 
-### Step 9 — Deliver and Report
+Confirm link visible before proceeding to next batch.
 
-For each batch:
-1. Deliver xlsx via `render_content` (displayType: download)
-2. Report: rows written, classification breakdown (AC/FB/PC/NA/blank counts), HITL count
+After all batches delivered, output summary report (< 5KB — DynamoDB item size compliance):
 
-Final summary:
-- Total rows: N
-- AC: N | FB: N | PC: N | NA: N | Blank (HITL): N
-- Unresolved mappings: list UIDs
+```markdown
+## Processing Summary
+- Sessions processed: [count]
+- Rubric rows processed: [count]
+- Rows classified: [count]
+
+## Classification Breakdown
+| Category | Count |
+|---|---|
+| Process Change (PC) | X |
+| Adoption/Config (AC) | X |
+| Feature Backlog (FB) | X |
+| Not Applicable (NA) | X |
+| Pending HITL review (blank) | X |
+
+## Assessment Workbooks
+- Assessment_<batch_name>.xlsx — [count] rows ↓ (download link above)
+- [...]
+```
+
+Do NOT output individual answers, mapping details, search queries, or batch logs. All detail stays in xlsx files.
 
 ---
 
 ## 4. Row Data Structure
-
-Each row passed to the xlsx builder must include these fields:
 
 ```json
 {
@@ -252,15 +332,15 @@ Each row passed to the xlsx builder must include these fields:
   "branch_answer": "All billing is handled in Vantaca...\n\nSource: CMA_Session6.vtt [00:05:01, Kim Dunbar] [system: native Vantaca]",
   "townsq_capability": "After config — Management fee billing contracts configured in TownSq...",
   "classification": "AC",
-  "assessor_notes": "BRANCH: ... TOWNSQ: [native Vantaca] ... DELTA: ... WHY AC: ... [GR-N: ...] Confidence: ...",
+  "assessor_notes": "BRANCH: ... TOWNSQ: [native Vantaca] ... DELTA: ... WHY AC: ... Confidence: ...",
   "proximity": "High (~75%)",
   "hitl": false
 }
 ```
 
-**`classification`** must be one of `"PC"`, `"AC"`, `"FB"`, `"NA"`, or `""` (empty string for HITL rows).
-**`proximity`** must be one of `"Exact match"`, `"High (~75%)"`, `"Moderate (~50%)"`, `"Low (~25%)"`, `"No match"`, or `""` (empty for HITL rows).
-**`hitl`** — set to `true` for blank-classification rows. The builder will display "HITL" with amber fill in the Classification cell as a visual indicator only.
+**`classification`**: `"PC"` / `"AC"` / `"FB"` / `"NA"` / `""`. **Never `"HITL"`.**
+**`proximity`**: `"Exact match"` / `"High (~75%)"` / `"Moderate (~50%)"` / `"Low (~25%)"` / `"No match"` / `""` (blank for HITL).
+**`hitl`**: `true` for blank-classification rows. Script applies amber fill; cell value stays blank.
 
 ---
 
@@ -268,84 +348,70 @@ Each row passed to the xlsx builder must include these fields:
 
 | Failure | Cause | Fix |
 |---|---|---|
-| Response cut off mid-run | Payload too large for single tool call | Batch at ≤ 30 rows per execute_code call |
-| `execute_code` timeout | Inline Python string literals for 100 rows too large | Pass rows as `input` JSON parameter, not inline strings |
-| `run_skill_script` payload overflow | 100-row JSON too large for inputData | Use execute_code + build_assessment_batch.py instead |
+| Response cut off mid-run | Payload too large | Batch at ≤ 30 rows |
+| `execute_code` timeout | Inline Python literals for 100 rows | Pass rows as `input` JSON parameter |
+| `run_skill_script` payload overflow | 100-row JSON too large | Use execute_code + build_assessment_batch.py |
 | `getSpreadsheetInfo` column not found | Column names vary by file | Always call getSpreadsheetInfo before querying |
-| Transcript evidence missing for a topic | Single broad VTT query misses detail | Use 3–4 targeted topic-cluster queries |
-| 0 rows returned from mapping CSV query | Session column stored as number, queried as string | Check sample values in getSpreadsheetInfo output |
-| Over-generation of FB on integration items | FB bias applied without checking integrations first | Check GR-1 before classifying FB |
-| Wrong context (business vs. community) | AI evaluating business-client features for community branches | Scope all evidence to HOA community management context (GR-2) |
-| StrongRoom/Vantaca conflation | Treating StrongRoom capabilities as native Vantaca | Tag system of record in every answer source line (GR-3) |
-| "HITL" written in Classification column | Misapplication of old behavior | Classification must be blank; write `[HITL: <reason>]` in Assessor Notes |
-| Proximity missing from output | Old 14-column schema used | Ensure build script outputs 15 columns; proximity is column 15 |
-| False ACs on integration topics | Transcript silent but classified AC | Tighten HITL: transcript silent + integration capability → blank Classification + HITL note |
+| Transcript evidence missing | Single broad VTT query | Use 3–4 targeted topic-cluster queries |
+| 0 rows from mapping CSV | Session stored as number, queried as string | Check sample values in getSpreadsheetInfo output |
+| build_assessment_snapshot_v2.py hangs | Small-payload design | Use build_assessment_batch.py only |
+| "HITL" appearing in Classification cell | `classification` set to `"HITL"` in row data | Set `"classification": ""` + `"hitl": true`. Never use `"HITL"` as a classification value. |
+| Over-generation of FB | FB bias applied before checking integrations | Check GR-1 first |
+| Wrong context (business vs. community) | AI evaluating business-client features | Scope to HOA community management (GR-2) |
+| StrongRoom/Vantaca conflation | Treating StrongRoom as native Vantaca | Tag system of record in Source lines (GR-3) |
+| Proximity missing | Old 14-column schema | 15 columns required; proximity is col 15 |
+| File not delivered as download link | `render_content` skipped | Call `render_content` after every successful batch |
+| `outputFiles` empty after execute_code | File not written | Check script writes to relative path; retry |
 
 ---
 
 ## 6. Transcript Evidence Quality Rules
 
-- **Cite speaker and timestamp for every answer**
+- **Cite speaker and timestamp** for every answer (e.g., `[00:05:01–00:05:14, Kim Dunbar]`)
 - **Tag system of record** in every Source line: `[system: native Vantaca / StrongRoom / VendorSmart / Stripe / other]`
 - **Scope to community management context** — note any business-client context mismatch
 - **Do not use TownSq capability column as branch evidence**
-- **Synthesize only explicit statements** — no inference beyond what is said
-- **Not Found is valid** — use it when transcript is genuinely silent; do not guess
+- **Synthesize only explicit statements** — no inference
+- **Not Found is valid** — use it when transcript is genuinely silent
 - **GAPS line required** when some sub-parts of a multi-part question are unanswered
 
 ---
 
 ## 7. Classification Quick Reference
 
-| Code | When |
-|---|---|
-| AC | TownSq supports it after config; OR supported Associa integration covers it; branch steps/roles survive |
-| PC | TownSq supports it; branch steps/roles/approvals must change |
-| FB | TownSq cannot produce the required outcome today AND no supported integration covers it |
-| NA | Branch positively does not do this / does not apply |
-| **blank** | Not Found, low confidence, or torn between codes — write `[HITL: <reason>]` in Assessor Notes |
-
-**Dominant-blocker rule:** When a row needs both AC and PC, assign PC and note `Also requires: <config>` in Assessor Notes.
-
-**Exception automation rule (GR-4):** Base = AC; add `[GR-4: exception automation FB gap — <description>]` in Assessor Notes.
-
-**Improvement recommendations:** Add `[RECOMMENDATION: <text>]` in Assessor Notes when a platform capability exceeds the branch's current state or an upsell exists.
+| Code | Field value | When |
+|---|---|---|
+| AC | `"AC"` | TownSq supports it after config; OR supported integration covers it |
+| PC | `"PC"` | TownSq supports it; branch steps/roles/approvals must change |
+| FB | `"FB"` | TownSq cannot produce the outcome AND no integration covers it |
+| NA | `"NA"` | Branch positively does not do this |
+| HITL | `""` + `hitl: true` | Not Found, low confidence, or torn — write `[HITL: <reason>]` in notes |
 
 ---
 
 ## 8. Assessor Note Format
 
-Every classified row must have assessor notes in this format:
-
 ```
-BRANCH: <clause from branch answer that drives the code>
+BRANCH: <clause from branch answer>
 TOWNSQ: <clause from TownSq capability; name system — native Vantaca / StrongRoom / VendorSmart / integration>
-DELTA: <which facets differ — outcome / mechanism / actors / timing / controls / exceptions / evidence>
+DELTA: <which facets differ>
 WHY <CODE>: <one sentence>
-[Also requires: <secondary config or process change, or FB automation layer, if any>]
-[GR-N: <Greg-Approved Rule applied, e.g. GR-1: Integration = AC>]
+[Also requires: <secondary config or FB automation layer, if any>]
+[GR-N: <Greg-Approved Rule applied>]
 [HITL: <reason — only on blank-classification rows>]
 [RECOMMENDATION: <improvement or upsell note — if applicable>]
 Confidence: <High | Medium | Low> (<what is solid; what is not>)
 ```
 
-Note: Proximity is written in the dedicated **Proximity column (col 15)**, not inside Assessor Notes.
-Do not use the phrase "non-negotiable" anywhere in notes (GR-6).
+Proximity is written in **col 15**, not inside Assessor Notes. Do not use "non-negotiable" (GR-6).
 
 ---
 
 ## 9. Greg-Approved Classifications Reference
 
-See `references/greg_approved_classifications.md` for the full table. Load at Step 2b.
+See `references/greg_approved_classifications.md`. Load at Step 2b.
 
-Key rules summary:
-- **GR-1:** Integration (StrongRoom / VendorSmart / Stripe) = AC, not FB
-- **GR-2:** Community management context only
-- **GR-3:** StrongRoom ≠ native Vantaca ≠ VendorSmart
-- **GR-4:** Exception automation = FB on top of AC base
-- **GR-5:** Third-party portal retirement = always FB
-- **GR-6:** No "non-negotiable" language
-- **GR-7:** 14 specific topics with Greg-confirmed classifications
+Key rules: GR-1 (integration = AC), GR-2 (community context), GR-3 (systems distinct), GR-4 (exception automation = FB on AC), GR-5 (portal retirement = FB), GR-6 (no non-negotiable), GR-7 (14 confirmed topics).
 
 ---
 
@@ -357,7 +423,9 @@ Key rules summary:
 | Run 2 | Systems (6.12.9) + Supply (6.8) + Reimbursables (6.9) | 32 | 18 | 8 | 3 | 3 | 14 |
 | Run 3 | Amenity Rentals (6.12) + Audit/Tax/CPA (6.10) | 29 | TBD | TBD | TBD | TBD | TBD |
 
-Note: Run 1's 18 FBs likely include items reclassifiable as AC under GR-1. Re-review against StrongRoom/VendorSmart coverage.
-
 Total Session 6 mapped rows: 100. Transcript: `CMA _ Financial Operations Discovery - Session 6.vtt`.
 Data product: `Vantaca - CMA - Session 6`. Mapping CSV: `Sessions_6_Master_Rubric_Mapping.csv`.
+
+Known pain points captured in Run 2:
+- Payment misapplication (assessment vs. reservation) — Will Stanley, 00:55:43
+- Role-based JE restriction gap — Melanie Adams, 01:18:44
