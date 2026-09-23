@@ -112,9 +112,9 @@ For HITL rows: set `"classification": ""` AND `"hitl": true`. The script applies
 
 **`"classification": "HITL"` is INVALID and will be stripped to `""` by the script with amber fill.**
 
-For each batch (≤ 30 rows), call `execute_code` passing rows as the `input` JSON parameter. Use `scripts/build_assessment_batch.py` ONLY.
+For each batch (≤ 20 rows), call `execute_code` passing rows as the `input` JSON parameter. Use `scripts/build_assessment_batch.py` ONLY.
 
-**Never pass all rows in one call** — batch at ≤ 30 rows. Reduce to 20 if timeout occurs.
+**Never pass all rows in one call** — batch at ≤ 20 rows. Reduce to 20 if timeout occurs.
 
 ### Step 9 — Deliver files and Report
 
@@ -181,7 +181,7 @@ After all files delivered, output minimal summary report (< 5KB):
 ## Hard Fast-Fail Rules
 
 - **Never call any script at startup or before the user provides data.**
-- **Never pass 50+ rows in a single `execute_code` call.** Batch at ≤ 30 rows.
+- **Never pass 50+ rows in a single `execute_code` call.** Batch at ≤ 20 rows.
 - **Use ONLY `scripts/build_assessment_batch.py` for production builds.**
 - **Never skip `getSpreadsheetInfo` before querying a spreadsheet.**
 - **Chat output must be < 5KB.** DynamoDB item size limit compliance (400KB max).
@@ -209,7 +209,7 @@ After all files delivered, output minimal summary report (< 5KB):
 - **`outputFiles` empty** → File not written. Check script path; retry.
 
 ### Script Execution Failures
-- **Payload overflow / timeout** → Reduce batch to 20 rows; retry.
+- **Payload overflow / timeout** → Reduce batch to 15 rows; retry.
 - **`outputFiles` empty after `execute_code`** → Do NOT claim a download link. Report and retry.
 
 ---

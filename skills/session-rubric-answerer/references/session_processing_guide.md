@@ -103,7 +103,7 @@ Example split for a Financial Operations session:
 
 ### Step 5 — Split Rows into Capability-Group Batches
 
-**Rule: ≤ 30 rows per batch.**
+**Rule: ≤ 20 rows per batch.**
 
 Group rows by capability name. Typical splits:
 
@@ -113,7 +113,7 @@ Group rows by capability name. Typical splits:
 | Run 2 | Supply Charges (6.8) + Reimbursables (6.9) + Systems (6.12.9) | 25–35 |
 | Run 3 | Amenity Rentals (6.12) + Audit/Tax/CPA (6.10) | 20–30 |
 
-If a single capability group > 30 rows, split alphabetically by dimension.
+If a single capability group > 20 rows, split alphabetically by dimension.
 
 ### Step 6 — Extract Branch Answers
 
@@ -182,12 +182,12 @@ The build script applies amber fill to the Classification cell automatically for
 | `run_skill_script` with full 100-row inputData | Payload too large — response cut off |
 | `execute_code` with inline Python string literals for 100 rows | Script body too large — sandbox timeout |
 | `execute_code` with `input` JSON param for 100 rows | JSON input too large to marshal inline |
-| `execute_code` with ≤ 30 rows as `input` JSON | ✅ **Works reliably** |
+| `execute_code` with ≤ 20 rows as `input` JSON | ✅ **Works reliably** |
 
 #### Canonical build pattern (per batch)
 
 ```python
-# In execute_code, pass rows as the `input` parameter (≤ 30 rows)
+# In execute_code, pass rows as the `input` parameter (≤ 20 rows)
 # The sandbox writes input to input.json automatically
 # Script reads input.json and writes xlsx
 
@@ -205,9 +205,9 @@ batch_name = data.get('batch_name', 'Batch')
 
 **Use `scripts/build_assessment_batch.py` ONLY.** Never use deprecated snapshot scripts.
 
-For each batch (≤ 30 rows), call `execute_code` (Python) passing rows as the `input` JSON parameter.
+For each batch (≤ 20 rows), call `execute_code` (Python) passing rows as the `input` JSON parameter.
 
-**If `execute_code` times out:** reduce batch size from 30 to 20 rows and retry.
+**If `execute_code` times out:** reduce batch size from 20 to 15 rows and retry.
 
 After each `execute_code` call:
 - `outputFiles` non-empty → proceed to Step 9 delivery
@@ -348,7 +348,7 @@ Do NOT output individual answers, mapping details, search queries, or batch logs
 
 | Failure | Cause | Fix |
 |---|---|---|
-| Response cut off mid-run | Payload too large | Batch at ≤ 30 rows |
+| Response cut off mid-run | Payload too large | Batch at ≤ 20 rows |
 | `execute_code` timeout | Inline Python literals for 100 rows | Pass rows as `input` JSON parameter |
 | `run_skill_script` payload overflow | 100-row JSON too large | Use execute_code + build_assessment_batch.py |
 | `getSpreadsheetInfo` column not found | Column names vary by file | Always call getSpreadsheetInfo before querying |

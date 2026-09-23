@@ -147,7 +147,7 @@ Proximity is written in the **Proximity column**, not inside this text.
 6. **Fetch transcript evidence** — 2–4 targeted topic-cluster queries; tag system of record; scope to community management
 7. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank when transcript is silent + capability is integration-based
 8. **Classify** — apply GR-1 through GR-7 first, then decision ladder; never write "HITL" in Classification column
-9. **Build xlsx** — `build_assessment_batch.py` via `execute_code`; ≤ 30 rows per batch; 15 columns including Proximity
+9. **Build xlsx** — `build_assessment_batch.py` via `execute_code`; ≤ 20 rows per batch; 15 columns including Proximity
 10. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
 
 ---
@@ -155,7 +155,7 @@ Proximity is written in the **Proximity column**, not inside this text.
 ## Hard Rules
 
 - Never call any script at startup or before the user provides session data
-- Never pass 50+ rows as a single `execute_code` payload — batch at ≤ 30 rows
+- Never pass 50+ rows as a single `execute_code` payload — batch at ≤ 20 rows
 - Never use `build_assessment_snapshot.py` or `build_assessment_snapshot_v2.py` for production
 - Never write "HITL" in the Classification column — blank + `[HITL: ...]` in notes
 - Never embed Proximity inside Assessor Notes — it goes in column 15
