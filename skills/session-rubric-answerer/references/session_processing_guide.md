@@ -1,6 +1,6 @@
 # Session Processing Guide
 **Canonical operational guide for session-rubric-answerer**
-Last updated: 2026-09-22 — fixed HITL cell value: blank (not "HITL"), amber fill only
+Last updated: 2026-09-23 — added filename convention, sandbox isolation rule, no-inline-script halt rule, data product naming convention
 
 ---
 
@@ -8,7 +8,7 @@ Last updated: 2026-09-22 — fixed HITL cell value: blank (not "HITL"), amber fi
 
 This guide documents the proven end-to-end pattern for processing any discovery session transcript against the Master Rubric. It was written after a live Session 6 run that encountered and resolved three distinct failure modes, then updated with classification corrections from four Greg Hamm SME review sessions. Follow it exactly before improvising.
 
-**Output:** One xlsx workbook per capability-group batch (15 columns). Every workbook must be delivered as a **clickable download link** in chat via `render_content`.
+**Output:** One xlsx workbook per capability-group batch (15 columns), named `Assessment_{Branch}_Session{N}_Run{M}.xlsx`. Every workbook must be delivered as a **clickable download link** in chat via `render_content`.
 
 ---
 
@@ -22,8 +22,24 @@ Before running anything, confirm:
 - [ ] `getSpreadsheetInfo` called on the mapping CSV to verify column names
 - [ ] Rubric index loaded via `read_skill_resource`
 - [ ] `references/greg_approved_classifications.md` loaded via `read_skill_resource`
+- [ ] Data product name(s) confirmed against naming convention (Section 2c)
 
 Do NOT proceed if any item is unchecked.
+
+---
+
+## 2c. Data Product Naming Convention
+
+All data products follow these naming patterns. Match exactly — do not guess or abbreviate.
+
+| Type | Pattern | Example |
+|---|---|---|
+| Per-session transcript + mapping | `{Company} - {Branch} - Session {N}` | `Vantaca - CMA - Session 6` |
+| Company-wide common data | `{Company} Data Product - Common` | `Vantaca Data Product - Common` |
+| Company branch common data | `{Company} - {Branch} Common` | `Vantaca - CMA Common` |
+| Master Rubric session data | `{Company} - Master Rubric - Session {N}` | `Vantaca - Master Rubric - Session 6` |
+
+**If the data product name provided by the user does not match any pattern above, report the mismatch and ask for confirmation before proceeding. Do not query a data product whose name has not been confirmed.**
 
 ---
 
@@ -173,7 +189,14 @@ The build script applies amber fill to the Classification cell automatically for
 
 ### Step 8 — Build Assessment xlsx (BATCHED via execute_code)
 
-**This is the critical step where previous single-payload attempts failed. The fix is mandatory.**
+**The xlsx MUST be built inside `execute_code`.** The `execute_code` sandbox writes the file and captures it in `outputFiles`. The file is then delivered directly from `outputFiles` — no cross-sandbox read is needed or possible.
+
+**Never use `run_skill_script` to build production xlsx files.** `run_skill_script` and `execute_code` have completely isolated sandboxes. A file written by one is never visible to the other. Attempting to read a skill-sandbox file from `execute_code` will always produce a `FileNotFoundError`.
+
+**If `build_assessment_batch.py` fails for any reason — STOP.** Do not write inline Python to replicate the script logic. Instead:
+1. Report exactly what failed and why
+2. Describe what change to `build_assessment_batch.py` is needed to fix it
+3. Halt and wait for the user to update the script before retrying
 
 #### Why batching is required
 
@@ -197,21 +220,33 @@ from openpyxl.utils import get_column_letter
 
 with open('input.json') as f:
     data = json.load(f)
+branch = data['branch']       # e.g. "CMA"
+session = data['session']     # e.g. 6
+run = data['run']             # e.g. 1
 rows = data['rows']
-batch_name = data.get('batch_name', 'Batch')
 
 # ... (see build_assessment_batch.py for full implementation)
+# Output filename: Assessment_{branch}_Session{session}_Run{run}.xlsx
 ```
 
 **Use `scripts/build_assessment_batch.py` ONLY.** Never use deprecated snapshot scripts.
 
-For each batch (≤ 20 rows), call `execute_code` (Python) passing rows as the `input` JSON parameter.
+For each batch (≤ 20 rows), call `execute_code` (Python) passing rows as the `input` JSON parameter:
+
+```json
+{
+  "branch": "CMA",
+  "session": 6,
+  "run": 1,
+  "rows": [ ... ]
+}
+```
 
 **If `execute_code` times out:** reduce batch size from 20 to 15 rows and retry.
 
 After each `execute_code` call:
-- `outputFiles` non-empty → proceed to Step 9 delivery
-- `outputFiles` empty → file NOT captured; do NOT claim a link; retry
+- `outputFiles` non-empty → proceed to Step 9 delivery immediately
+- `outputFiles` empty → file NOT captured; do NOT claim a link; report and retry
 
 #### Column schema (15 columns, fixed order)
 
@@ -265,9 +300,9 @@ After each `execute_code` call:
 #### Output file naming
 
 ```
-Assessment_<batch_name>.xlsx
+Assessment_{Branch}_Session{N}_Run{M}.xlsx
 ```
-Examples: `Assessment_Run1_MgmtFee.xlsx`, `Assessment_Run2_Supply_Reimbursables.xlsx`
+Examples: `Assessment_CMA_Session6_Run1.xlsx`, `Assessment_CMA_Session6_Run2.xlsx`
 
 ### Step 9 — Deliver Files and Report
 
@@ -278,10 +313,10 @@ Immediately after `execute_code` confirms the file was written, deliver via `ren
 ```
 render_content(
   displayType: "download",
-  title: "Assessment_<batch_name>.xlsx",
+  title: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
   content: <base64-encoded file bytes from outputFiles>,
   metadata: {
-    filename: "Assessment_<batch_name>.xlsx",
+    filename: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   }
 )
@@ -307,11 +342,12 @@ After all batches delivered, output summary report (< 5KB — DynamoDB item size
 | Pending HITL review (blank) | X |
 
 ## Assessment Workbooks
-- Assessment_<batch_name>.xlsx — [count] rows ↓ (download link above)
+- Assessment_{Branch}_Session{N}_Run1.xlsx — [count] rows ↓ (download link above)
+- Assessment_{Branch}_Session{N}_Run2.xlsx — [count] rows ↓ (download link above)
 - [...]
 ```
 
-Do NOT output individual answers, mapping details, search queries, or batch logs. All detail stays in xlsx files.
+Do NOT output individual answers, mapping details, search queries, or batch logs.
 
 ---
 
@@ -349,12 +385,13 @@ Do NOT output individual answers, mapping details, search queries, or batch logs
 | Failure | Cause | Fix |
 |---|---|---|
 | Response cut off mid-run | Payload too large | Batch at ≤ 20 rows |
-| `execute_code` timeout | Inline Python literals for 100 rows | Pass rows as `input` JSON parameter |
+| `execute_code` timeout | Inline Python literals or oversized payload | Pass rows as `input` JSON parameter; reduce to 15 rows if needed |
 | `run_skill_script` payload overflow | 100-row JSON too large | Use execute_code + build_assessment_batch.py |
 | `getSpreadsheetInfo` column not found | Column names vary by file | Always call getSpreadsheetInfo before querying |
 | Transcript evidence missing | Single broad VTT query | Use 3–4 targeted topic-cluster queries |
 | 0 rows from mapping CSV | Session stored as number, queried as string | Check sample values in getSpreadsheetInfo output |
-| build_assessment_snapshot_v2.py hangs | Small-payload design | Use build_assessment_batch.py only |
+| FileNotFoundError after run_skill_script | Skill sandbox and code sandbox are isolated — files do not cross | Build xlsx inside `execute_code` only. Never use `run_skill_script` for production builds. |
+| Persona writes inline Python to build xlsx | Script failure with no halt-and-report instruction | If build_assessment_batch.py fails: STOP, report what failed, describe the fix needed, wait for user to update the script. Do not replicate script logic inline. |
 | "HITL" appearing in Classification cell | `classification` set to `"HITL"` in row data | Set `"classification": ""` + `"hitl": true`. Never use `"HITL"` as a classification value. |
 | Over-generation of FB | FB bias applied before checking integrations | Check GR-1 first |
 | Wrong context (business vs. community) | AI evaluating business-client features | Scope to HOA community management (GR-2) |
@@ -362,6 +399,7 @@ Do NOT output individual answers, mapping details, search queries, or batch logs
 | Proximity missing | Old 14-column schema | 15 columns required; proximity is col 15 |
 | File not delivered as download link | `render_content` skipped | Call `render_content` after every successful batch |
 | `outputFiles` empty after execute_code | File not written | Check script writes to relative path; retry |
+| Wrong data product queried | Name guessed rather than matched to convention | Confirm data product name against Section 2c before querying |
 
 ---
 
@@ -424,7 +462,8 @@ Key rules: GR-1 (integration = AC), GR-2 (community context), GR-3 (systems dist
 | Run 3 | Amenity Rentals (6.12) + Audit/Tax/CPA (6.10) | 29 | TBD | TBD | TBD | TBD | TBD |
 
 Total Session 6 mapped rows: 100. Transcript: `CMA _ Financial Operations Discovery - Session 6.vtt`.
-Data product: `Vantaca - CMA - Session 6`. Mapping CSV: `Sessions_6_Master_Rubric_Mapping.csv`.
+Data product: `Vantaca - CMA - Session 6` (matches pattern `{Company} - {Branch} - Session {N}`).
+Mapping CSV: `Sessions_6_Master_Rubric_Mapping.csv`.
 
 Known pain points captured in Run 2:
 - Payment misapplication (assessment vs. reservation) — Will Stanley, 00:55:43

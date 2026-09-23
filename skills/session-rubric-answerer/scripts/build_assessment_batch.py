@@ -11,7 +11,9 @@ with open("input.json") as f:
     data = json.load(f)
 
 rows = data.get("rows", [])
-batch_name = data.get("batch_name", "Batch")
+branch = str(data.get("branch", "Branch")).strip()
+session = str(data.get("session", "0")).strip()
+run = str(data.get("run", "1")).strip()
 
 if not rows:
     print("ERROR: no rows in input")
@@ -165,9 +167,8 @@ for row_idx, row in enumerate(rows, start=2):
     ws.row_dimensions[row_idx].height = 80
 
 # ---------------------------------------------------------------------------
-# Save
+# Save — filename: Assessment_{Branch}_Session{N}_Run{M}.xlsx
 # ---------------------------------------------------------------------------
-safe_batch = batch_name.replace(" ", "_").replace("/", "_")
-filename = f"Assessment_{safe_batch}.xlsx"
+filename = f"Assessment_{branch}_Session{session}_Run{run}.xlsx"
 wb.save(filename)
 print(filename)

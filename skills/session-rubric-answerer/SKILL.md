@@ -19,7 +19,7 @@ You process branch discovery session transcripts against the Associa Branch Read
 - `references/greg_approved_classifications.md` — **Load at Step 2b.** Greg-confirmed classifications and domain rules (GR-1 through GR-7). Highest priority — overrides general decision ladder for covered topics.
 - `references/rubric_index.json` — Lightweight rubric index (representative rows). Use for scope resolution. Pass as `rubric_index` in inputData when calling v2 scripts.
 - `scripts/resolve_session_scope_v2.py` — Resolves session mapping rows to rubric rows. Input: `{ "mapping_rows": [...], "rubric_index": [...] }`. Output: resolved rows or list of unresolved questions.
-- `scripts/build_assessment_batch.py` — **Canonical production xlsx builder.** Handles ≤30-row batches, formats colors/freeze/wrap/column widths. Use via `execute_code` (Python), passing rows as `input` JSON parameter. Reads from `input.json`, writes `Assessment_<batch_name>.xlsx`. **This is the ONLY script to use for new production builds.**
+- `scripts/build_assessment_batch.py` — **Canonical production xlsx builder.** Handles ≤20-row batches, formats colors/freeze/wrap/column widths. Use via `execute_code` (Python), passing rows as `input` JSON parameter. Reads from `input.json`, writes `Assessment_{Branch}_Session{N}_Run{M}.xlsx`. **This is the ONLY script to use for new production builds.**
 - `scripts/build_assessment_snapshot_v2.py` — **DEPRECATED.** Do not use for production.
 - `scripts/build_assessment_snapshot.py` — **DEPRECATED.** Do not use. Use `build_assessment_batch.py` instead.
 - `assets/MasterRubricTemplateWithAssociaAnswers_FB.xlsx` — Master Rubric asset (read-only reference).
@@ -100,6 +100,10 @@ For HITL rows: set `"classification": ""` AND `"hitl": true`. The script applies
 
 ### Step 8 — Build Assessment xlsx (BATCHED)
 
+**The xlsx MUST be built inside `execute_code`.** The `execute_code` sandbox writes the file and captures it in `outputFiles`. The file is then delivered directly from `outputFiles` — no cross-sandbox read is needed or possible.
+
+**Never use `run_skill_script` to build production xlsx files.** `run_skill_script` and `execute_code` have isolated sandboxes. A file written by one is never visible to the other.
+
 **Classification field contract — enforced by the script:**
 
 ```json
@@ -112,9 +116,24 @@ For HITL rows: set `"classification": ""` AND `"hitl": true`. The script applies
 
 **`"classification": "HITL"` is INVALID and will be stripped to `""` by the script with amber fill.**
 
+Input JSON structure per batch:
+```json
+{
+  "branch": "CMA",
+  "session": 6,
+  "run": 1,
+  "rows": [ ... ]
+}
+```
+
 For each batch (≤ 20 rows), call `execute_code` passing rows as the `input` JSON parameter. Use `scripts/build_assessment_batch.py` ONLY.
 
-**Never pass all rows in one call** — batch at ≤ 20 rows. Reduce to 20 if timeout occurs.
+**Never pass all rows in one call** — batch at ≤ 20 rows. Reduce to 15 if timeout occurs.
+
+**If `build_assessment_batch.py` fails for any reason — STOP.** Do not write inline Python to replicate the script. Instead:
+1. Report exactly what failed and why
+2. Describe what change to `build_assessment_batch.py` is needed to fix it
+3. Halt and wait for the user to update the script
 
 ### Step 9 — Deliver files and Report
 
@@ -123,10 +142,10 @@ For each batch (≤ 20 rows), call `execute_code` passing rows as the `input` JS
 ```
 render_content(
   displayType: "download",
-  title: "Assessment_Run<N>_<CapGroup>.xlsx",
-  content: <base64-encoded file bytes>,
+  title: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
+  content: <base64-encoded file bytes from outputFiles>,
   metadata: {
-    filename: "Assessment_Run<N>_<CapGroup>.xlsx",
+    filename: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   }
 )
@@ -150,7 +169,8 @@ After all files delivered, output minimal summary report (< 5KB):
 | Pending HITL review (blank classification) | X |
 
 ## Assessment Workbooks
-- Assessment_Run1_<CapGroup>.xlsx — [count] rows ↓ (download link above)
+- Assessment_{Branch}_Session{N}_Run1.xlsx — [count] rows ↓ (download link above)
+- Assessment_{Branch}_Session{N}_Run2.xlsx — [count] rows ↓ (download link above)
 - [...]
 ```
 
@@ -183,6 +203,8 @@ After all files delivered, output minimal summary report (< 5KB):
 - **Never call any script at startup or before the user provides data.**
 - **Never pass 50+ rows in a single `execute_code` call.** Batch at ≤ 20 rows.
 - **Use ONLY `scripts/build_assessment_batch.py` for production builds.**
+- **Never use `run_skill_script` to build xlsx files.** Sandboxes are isolated — files do not cross.
+- **Never write inline Python to build xlsx files.** If the script fails, halt and report — do not replicate script logic inline.
 - **Never skip `getSpreadsheetInfo` before querying a spreadsheet.**
 - **Chat output must be < 5KB.** DynamoDB item size limit compliance (400KB max).
 - **`classification` field must be `"PC"`, `"AC"`, `"FB"`, `"NA"`, or `""`. Never `"HITL"`.**
@@ -209,7 +231,9 @@ After all files delivered, output minimal summary report (< 5KB):
 - **`outputFiles` empty** → File not written. Check script path; retry.
 
 ### Script Execution Failures
+- **FileNotFoundError after run_skill_script** → You tried to read a skill-sandbox file from the code sandbox. Build xlsx inside `execute_code` only — never use `run_skill_script` for production builds.
 - **Payload overflow / timeout** → Reduce batch to 15 rows; retry.
+- **Script fails for any reason** → STOP. Report what failed and what fix is needed. Do not write inline Python.
 - **`outputFiles` empty after `execute_code`** → Do NOT claim a download link. Report and retry.
 
 ---
@@ -219,3 +243,4 @@ After all files delivered, output minimal summary report (< 5KB):
 - **No write-back ever** — source files are never modified.
 - **Row count integrity** — delivered xlsx row count must equal mapping row count.
 - **Always tag system of record** in every Source line and TOWNSQ note line.
+- **Data product names must match the naming convention in Section 2c of the processing guide exactly.** If the name provided by the user does not match, report the mismatch and ask for confirmation before proceeding.
