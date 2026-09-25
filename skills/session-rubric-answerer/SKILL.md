@@ -19,7 +19,11 @@ You process branch discovery session transcripts against the Associa Branch Read
 - `references/greg_approved_classifications.md` — **Load at Step 2b.** Greg-confirmed classifications and domain rules (GR-1 through GR-7). Highest priority — overrides general decision ladder for covered topics.
 - `references/rubric_index.json` — Lightweight rubric index (representative rows). Use for scope resolution. Pass as `rubric_index` in inputData when calling v2 scripts.
 - `scripts/resolve_session_scope_v2.py` — Resolves session mapping rows to rubric rows. Input: `{ "mapping_rows": [...], "rubric_index": [...] }`. Output: resolved rows or list of unresolved questions. **Use via `run_skill_script` only.**
-- `scripts/build_assessment_batch.py` — **Canonical production xlsx builder. Use via `execute_code` ONLY — never via `run_skill_script`.** Reads from `input.json`, writes `Assessment_{Branch}_Session{N}_Run{M}.xlsx` to the working directory, which is captured in `outputFiles`.
+- `scripts/build_assessment_batch.py` — **Canonical production xlsx builder.**
+
+  > ⛔ **TOOL: `execute_code` — NEVER `run_skill_script`.**
+  > This script must be called via `execute_code` because only `execute_code` captures output files in `outputFiles` for delivery. `run_skill_script` writes to an isolated skill sandbox; those files are never accessible and cannot be delivered as downloads. Calling this script via `run_skill_script` will silently produce empty or broken download links every time.
+
 - `scripts/build_assessment_snapshot_v2.py` — **DEPRECATED.** Do not use for production.
 - `scripts/build_assessment_snapshot.py` — **DEPRECATED.** Do not use. Use `build_assessment_batch.py` instead.
 - `assets/MasterRubricTemplateWithAssociaAnswers_FB.xlsx` — Master Rubric asset (read-only reference).
@@ -30,6 +34,7 @@ You process branch discovery session transcripts against the Associa Branch Read
 |---|---|---|
 | `resolve_session_scope_v2.py` | `run_skill_script` | Reads/writes within skill sandbox only; no file delivery needed |
 | `build_assessment_batch.py` | **`execute_code` ONLY** | Must write xlsx to code sandbox so `outputFiles` captures it for delivery |
+| `build_assessment_batch.py` via `run_skill_script` | ⛔ **WRONG — do not use** | File lands in skill sandbox, never in `outputFiles`. Download link will be empty. |
 
 **This distinction is critical.** `run_skill_script` and `execute_code` have completely isolated sandboxes. A file written by `run_skill_script` is never visible to `execute_code` and cannot be delivered as a download. **Any xlsx built via `run_skill_script` produces a link to nothing.**
 
@@ -107,7 +112,12 @@ Decision ladder (walk in order, stop at first match):
 
 For HITL rows: set `"classification": ""` AND `"hitl": true`. The script applies amber fill automatically. The cell value will be blank — no text is written into it.
 
-### Step 8 — Build Assessment xlsx (BATCHED via execute_code)
+### Step 8 — Build Assessment xlsx (BATCHED via execute_code — NOT run_skill_script)
+
+> ⛔ **TOOL REQUIRED: `execute_code` — using `run_skill_script` here will silently break all file delivery.**
+> Files written by `run_skill_script` are trapped in the skill sandbox and never appear in `outputFiles`.
+> Every xlsx built via `run_skill_script` produces an empty or broken download link.
+> This is the most common failure mode in this skill. Always use `execute_code` for this step.
 
 > ⚠️ **`build_assessment_batch.py` MUST be called via `execute_code`, not `run_skill_script`.**
 > Files written by `run_skill_script` live in the skill sandbox and cannot be captured in `outputFiles` or delivered as downloads. Any xlsx built via `run_skill_script` produces a link to nothing — the file binary is not accessible.
@@ -211,9 +221,9 @@ After all files delivered, output minimal summary report (< 5KB):
 ## Hard Fast-Fail Rules
 
 - **Never call any script at startup or before the user provides data.**
+- **⛔ NEVER call `build_assessment_batch.py` via `run_skill_script`.** This is the single most common failure mode. `run_skill_script` writes to an isolated skill sandbox. The file is never captured. The download link will be empty. There is no recovery except rebuilding via `execute_code`. Always use `execute_code` for Step 8.
 - **Never pass 50+ rows in a single `execute_code` call.** Batch at ≤ 20 rows.
 - **Use ONLY `scripts/build_assessment_batch.py` for production builds.**
-- **`build_assessment_batch.py` MUST be called via `execute_code`, never via `run_skill_script`.** Files written by `run_skill_script` cannot be captured or delivered — any xlsx built that way produces a link to nothing.
 - **Never write inline Python to build xlsx files.** If the script fails, halt and report — do not replicate script logic inline.
 - **Never skip `getSpreadsheetInfo` before querying a spreadsheet.**
 - **Chat output must be < 5KB.** DynamoDB item size limit compliance (400KB max).
@@ -238,6 +248,7 @@ After all files delivered, output minimal summary report (< 5KB):
 
 ### Delivery Failures
 - **No download link / link points to nothing** → `build_assessment_batch.py` was called via `run_skill_script` instead of `execute_code`. The file landed in the skill sandbox and is not capturable. Rebuild the batch using `execute_code` with the same row data.
+- **I already built some batches via `run_skill_script` — how do I recover?** → The row data is still in context. Rebuild each affected batch using `execute_code` with the same rows. You do not need to re-run Steps 1–7. Pass the same `branch`, `session`, `run`, and `rows` values to `execute_code` as the `input` parameter and run `build_assessment_batch.py`.
 - **`outputFiles` empty after `execute_code`** → File not written to disk. Check script path; retry.
 - **Chat stopped mid-run after `run_skill_script` builds** → Same root cause: `run_skill_script` was used for xlsx builds. Start a new chat, reprocess the remaining batches using `execute_code` only.
 

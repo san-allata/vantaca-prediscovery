@@ -143,19 +143,49 @@ Proximity is written in the **Proximity column**, not inside this text.
 2. **Query mapping CSV** — call `getSpreadsheetInfo` first; query with LIMIT 100
 3. **Load Greg classifications** — `read_skill_resource("references/greg_approved_classifications.md")`
 4. **Load rubric index** — `read_skill_resource("references/rubric_index.json")`
-5. **Resolve scope** — run `resolve_session_scope_v2.py`; confirm 100% resolved
+5. **Resolve scope** — run `resolve_session_scope_v2.py` via **`run_skill_script`**; confirm 100% resolved
 6. **Fetch transcript evidence** — 2–4 targeted topic-cluster queries; tag system of record; scope to community management
 7. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank when transcript is silent + capability is integration-based
-8. **Classify** — apply GR-1 through GR-7 first, then decision ladder; never write "HITL" in Classification column
-9. **Build xlsx** — `build_assessment_batch.py` via `execute_code`; ≤ 20 rows per batch; 15 columns including Proximity
-10. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
+8. **Build xlsx via execute_code ONLY** — see below
+9. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
+
+---
+
+## Step 8 — Build Assessment xlsx (via execute_code ONLY)
+
+> ⛔ `build_assessment_batch.py` MUST be called via `execute_code` — NEVER via `run_skill_script`.
+> Using `run_skill_script` for this step is the single most common failure mode and silently breaks all file delivery:
+> - `run_skill_script` writes to an isolated skill sandbox
+> - That file is never captured in `outputFiles`
+> - The download link will be empty or point to nothing
+> - There is no recovery except rebuilding via `execute_code`
+
+**Always use `execute_code` for Step 8. No exceptions.**
+
+- Batch at ≤ 20 rows per `execute_code` call
+- Pass `branch`, `session`, `run`, and `rows` as the `input` JSON parameter
+- Check `outputFiles` is non-empty before calling `render_content`
+- Deliver each file immediately after its batch completes — do not queue all deliveries for the end
+- If `build_assessment_batch.py` fails for any reason: STOP, report what failed, describe the fix needed, halt and wait for the user to update the script. Do not write inline Python.
+
+**Recovery if `run_skill_script` was used by mistake:** Row data is still in context. Rebuild each affected batch via `execute_code` with the same `branch`, `session`, `run`, and `rows` values. No need to re-run Steps 1–7.
+
+---
+
+## Source Files (Read-Only — Never Write Back)
+
+- **Session Mapping CSV** — maps session questions to rubric rows
+- **Transcript** (VTT or DOCX) — source of all branch answers
+- **Master Rubric** (`MasterRubricTemplateWithAssociaAnswers_FB.xlsx`) — TownSq capability reference
+- **Greg-Approved Classifications** (`references/greg_approved_classifications.md`) — authoritative SME rulings
 
 ---
 
 ## Hard Rules
 
 - Never call any script at startup or before the user provides session data
-- Never pass 50+ rows as a single `execute_code` payload — batch at ≤ 20 rows
+- ⛔ **Never call `build_assessment_batch.py` via `run_skill_script`** — silently breaks file delivery every time
+- Never pass 50+ rows as a single `execute_code` payload — always batch at ≤ 20 rows
 - Never use `build_assessment_snapshot.py` or `build_assessment_snapshot_v2.py` for production
 - Never write "HITL" in the Classification column — blank + `[HITL: ...]` in notes
 - Never embed Proximity inside Assessor Notes — it goes in column 15
@@ -163,6 +193,7 @@ Proximity is written in the **Proximity column**, not inside this text.
 - Never use "non-negotiable" in any output (GR-6)
 - Chat output must stay < 5KB — all detailed data goes in xlsx files
 - Row count integrity is mandatory — delivered xlsx row count must equal mapping row count
+- Data product names must match the naming convention in the session processing guide exactly
 
 # Data Product
 
@@ -175,4 +206,3 @@ Vantaca Data Product - Common
 - rubric-answer-extractor-skill
 - excel-qa-processor
 - branch-assessor-skill
-
