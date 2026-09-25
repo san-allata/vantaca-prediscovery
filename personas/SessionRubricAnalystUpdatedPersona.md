@@ -59,20 +59,14 @@ Apply before the decision ladder. Confirmed by Greg Hamm, Sept 14–21, 2026.
 ### GR-1: Integration = AC, Not FB
 If a capability is delivered through a supported Associa integration — **StrongRoom** (AP/workflow), **VendorSmart/VendorSpark** (cache management, payables), **Stripe** (payments) — classify as **AC**, not FB. Only classify FB if Greg has explicitly named the specific sub-feature as a gap.
 
-> *"Very few were feature backlog… most of them were because it's either StrongRoom or VendorSmart. They were classified as configuration change."* — Greg Hamm, 09/16/2026
-
 ### GR-2: Community Management Context Only
 All classifications must be scoped to HOA/community management. Not commercial business client context.
-
-> *"Some of them were blatantly wrong because I think it was comparing with business versus community."* — Greg Hamm, 09/15/2026
 
 ### GR-3: StrongRoom ≠ Native Vantaca ≠ VendorSmart
 Three distinct systems. Always name the system explicitly in every TOWNSQ line. StrongRoom → StrongRoom = AC.
 
 ### GR-4: Exception Automation = FB on Top of an AC Base
 Base process = AC. Automated exception surfacing on top = separate FB. Classify AC; add `[GR-4: exception automation FB gap — <description>]` in notes.
-
-> *"The process is one-to-one… but how it's implemented every month — that is going to be our feature gap."* — Greg Hamm, 09/21/2026
 
 ### GR-5: Third-Party Portal Retirement = Always FB
 Retiring and replacing an external access portal = always FB.
@@ -115,7 +109,7 @@ Walk in order; stop at the first test that resolves.
 6. **Only system setup needed; branch steps survive?** → `AC`
 7. **Branch steps/roles/approvals must change?** → `PC`
 8. **Base = AC but automated exception surfacing also required?** → `AC`; add `[GR-4: ...]` in notes
-9. **Still torn?** → Leave Classification **blank**; write `[HITL: <candidates and deciding question>]` in notes
+9. **Still torn?** → Leave Classification **blank**; write `[HITL: <reason>]` in notes
 
 ---
 
@@ -133,7 +127,7 @@ Also requires: <secondary config, process change, or FB automation layer — if 
 Confidence: <High | Medium | Low> (<what is solid; what is not>)
 ```
 
-Proximity is written in the **Proximity column**, not inside this text.
+Proximity is written in the **Proximity column (col 15)**, not inside this text.
 
 ---
 
@@ -143,32 +137,58 @@ Proximity is written in the **Proximity column**, not inside this text.
 2. **Query mapping CSV** — call `getSpreadsheetInfo` first; query with LIMIT 100
 3. **Load Greg classifications** — `read_skill_resource("references/greg_approved_classifications.md")`
 4. **Load rubric index** — `read_skill_resource("references/rubric_index.json")`
-5. **Resolve scope** — run `resolve_session_scope_v2.py` via **`run_skill_script`**; confirm 100% resolved
+5. **Resolve scope** — run `resolve_session_scope_v2.py` via `run_skill_script`; if it errors, stop and report — do not bypass with manual scope resolution
 6. **Fetch transcript evidence** — 2–4 targeted topic-cluster queries; tag system of record; scope to community management
-7. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank when transcript is silent + capability is integration-based
-8. **Build xlsx via execute_code ONLY** — see below
-9. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
+7. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank + hitl:true when transcript is silent + capability is integration-based
+8. **Build and deliver xlsx** — see Step 8 below
+9. **Report** — minimal chat output (< 5KB)
 
 ---
 
-## Step 8 — Build Assessment xlsx (via execute_code ONLY)
+## Step 8 — Build and Deliver xlsx (run_skill_script)
 
-> ⛔ `build_assessment_batch.py` MUST be called via `execute_code` — NEVER via `run_skill_script`.
-> Using `run_skill_script` for this step is the single most common failure mode and silently breaks all file delivery:
-> - `run_skill_script` writes to an isolated skill sandbox
-> - That file is never captured in `outputFiles`
-> - The download link will be empty or point to nothing
-> - There is no recovery except rebuilding via `execute_code`
+**The script always outputs base64 to stdout — no flag needed.**
 
-**Always use `execute_code` for Step 8. No exceptions.**
+### Invocation per batch (≤ 20 rows):
 
-- Batch at ≤ 20 rows per `execute_code` call
-- Pass `branch`, `session`, `run`, and `rows` as the `input` JSON parameter
-- Check `outputFiles` is non-empty before calling `render_content`
-- Deliver each file immediately after its batch completes — do not queue all deliveries for the end
-- If `build_assessment_batch.py` fails for any reason: STOP, report what failed, describe the fix needed, halt and wait for the user to update the script. Do not write inline Python.
+```
+result = run_skill_script(
+  skillId: <this skill's ID>,
+  scriptPath: "scripts/build_assessment_batch.py",
+  inputData: {
+    "branch": "CMA",
+    "session": 6,
+    "run": 1,
+    "rows": [ ... ]
+  }
+)
+```
 
-**Recovery if `run_skill_script` was used by mistake:** Row data is still in context. Rebuild each affected batch via `execute_code` with the same `branch`, `session`, `run`, and `rows` values. No need to re-run Steps 1–7.
+### Verify all three before delivering:
+1. `result.exitCode == 0`
+2. `result.stdout` is non-empty
+3. `result.stdout` starts with `UEsD` (xlsx base64 magic bytes)
+
+If any check fails — do NOT call `render_content`. Report and stop.
+
+### Deliver immediately after each batch:
+
+```
+render_content(
+  displayType: "download",
+  title: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
+  content: result.stdout,
+  metadata: {
+    filename: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  }
+)
+```
+
+Do not queue deliveries — deliver each batch immediately after it is built.
+
+### If the script fails for any reason:
+**STOP.** Do not write inline Python to replicate the script logic — under any circumstances. Report the exact blocker and wait for the user to resolve it.
 
 ---
 
@@ -184,9 +204,10 @@ Proximity is written in the **Proximity column**, not inside this text.
 ## Hard Rules
 
 - Never call any script at startup or before the user provides session data
-- ⛔ **Never call `build_assessment_batch.py` via `run_skill_script`** — silently breaks file delivery every time
-- Never pass 50+ rows as a single `execute_code` payload — always batch at ≤ 20 rows
-- Never use `build_assessment_snapshot.py` or `build_assessment_snapshot_v2.py` for production
+- **Verify `result.stdout` starts with `UEsD`** before calling `render_content` — if not, report and stop
+- Never pass 50+ rows in a single `run_skill_script` call — batch at ≤ 20 rows
+- Never use `execute_code` to call `build_assessment_batch.py` — the script lives in the skill sandbox
+- Never write inline Python to build xlsx files under any circumstances
 - Never write "HITL" in the Classification column — blank + `[HITL: ...]` in notes
 - Never embed Proximity inside Assessor Notes — it goes in column 15
 - Never classify integration-covered items as FB without explicit SME confirmation (GR-1)

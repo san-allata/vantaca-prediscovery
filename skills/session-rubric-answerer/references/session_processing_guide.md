@@ -1,6 +1,6 @@
 # Session Processing Guide
 **Canonical operational guide for session-rubric-answerer**
-Last updated: 2026-09-23 — added filename convention, sandbox isolation rule, no-inline-script halt rule, data product naming convention
+Last updated: 2026-09-25 — aligned with build_assessment_batch.py always-base64 output; corrected Step 8/9 to use run_skill_script stdout; fixed failure mode table; added Issue C (scope error halt) and Issue E (UEsD verification)
 
 ---
 
@@ -92,7 +92,7 @@ Hold in context for the full run.
 
 ### Step 3 — Resolve Session Scope
 
-Call `resolve_session_scope_v2.py`:
+Call `resolve_session_scope_v2.py` via `run_skill_script`:
 
 ```json
 {
@@ -101,7 +101,9 @@ Call `resolve_session_scope_v2.py`:
 }
 ```
 
-Report any unresolved rows before proceeding.
+Expected output: `{ "resolved": [...], "unresolved": [...] }`. Report any unresolved rows before proceeding.
+
+**If the script errors for any reason, stop and report the exact error. Do not substitute manual scope resolution from mapping query context — the two are not equivalent.**
 
 ### Step 4 — Fetch Transcript Evidence (Batched by Topic)
 
@@ -181,72 +183,52 @@ For rows requiring human review:
 - Write `[HITL: <reason>]` in `assessor_notes`
 - Leave `"proximity": ""`
 
-The build script applies amber fill to the Classification cell automatically for HITL rows. **The cell value will be blank — no text is written into it.** The amber color is the only visual indicator.
-
-**This is enforced in the script:** any value not in `{"PC", "AC", "FB", "NA", ""}` is silently forced to `""` with amber fill.
+The build script applies amber fill to the Classification cell automatically for HITL rows. **The cell value will be blank — no text is written into it.**
 
 ---
 
-### Step 8 — Build Assessment xlsx (BATCHED via execute_code)
+### Step 8 — Build Assessment xlsx (BATCHED via run_skill_script)
 
-**The xlsx MUST be built inside `execute_code`.** The `execute_code` sandbox writes the file and captures it in `outputFiles`. The file is then delivered directly from `outputFiles` — no cross-sandbox read is needed or possible.
+Call `build_assessment_batch.py` via **`run_skill_script`**. The script always outputs the xlsx as base64 to stdout — no extra flag or parameter is needed.
 
-**Never use `run_skill_script` to build production xlsx files.** `run_skill_script` and `execute_code` have completely isolated sandboxes. A file written by one is never visible to the other. Attempting to read a skill-sandbox file from `execute_code` will always produce a `FileNotFoundError`.
+#### Why `run_skill_script`, not `execute_code`
 
-**If `build_assessment_batch.py` fails for any reason — STOP.** Do not write inline Python to replicate the script logic. Instead:
-1. Report exactly what failed and why
-2. Describe what change to `build_assessment_batch.py` is needed to fix it
-3. Halt and wait for the user to update the script before retrying
-
-#### Why batching is required
-
-| Attempt | Failure mode |
-|---|---|
-| `run_skill_script` with full 100-row inputData | Payload too large — response cut off |
-| `execute_code` with inline Python string literals for 100 rows | Script body too large — sandbox timeout |
-| `execute_code` with `input` JSON param for 100 rows | JSON input too large to marshal inline |
-| `execute_code` with ≤ 20 rows as `input` JSON | ✅ **Works reliably** |
+The script file lives in the skill sandbox. `execute_code` runs in a completely isolated code sandbox that cannot access skill sandbox files — calling the script from `execute_code` will always produce a `FileNotFoundError`. `run_skill_script` executes directly in the skill sandbox and prints the base64-encoded xlsx to stdout, which is then captured and passed to `render_content`.
 
 #### Canonical build pattern (per batch)
 
-```python
-# In execute_code, pass rows as the `input` parameter (≤ 20 rows)
-# The sandbox writes input to input.json automatically
-# Script reads input.json and writes xlsx
-
-import json, openpyxl
-from openpyxl.styles import PatternFill, Font, Alignment
-from openpyxl.utils import get_column_letter
-
-with open('input.json') as f:
-    data = json.load(f)
-branch = data['branch']       # e.g. "CMA"
-session = data['session']     # e.g. 6
-run = data['run']             # e.g. 1
-rows = data['rows']
-
-# ... (see build_assessment_batch.py for full implementation)
-# Output filename: Assessment_{branch}_Session{session}_Run{run}.xlsx
+```
+result = run_skill_script(
+  skillId: <this skill's ID>,
+  scriptPath: "scripts/build_assessment_batch.py",
+  inputData: {
+    "branch": "CMA",
+    "session": 6,
+    "run": 1,
+    "rows": [ ... ]
+  }
+)
 ```
 
-**Use `scripts/build_assessment_batch.py` ONLY.** Never use deprecated snapshot scripts.
+**Input JSON fields:**
 
-For each batch (≤ 20 rows), call `execute_code` (Python) passing rows as the `input` JSON parameter:
+| Field | Type | Description |
+|---|---|---|
+| `branch` | string | Branch name, e.g. `"CMA"` |
+| `session` | number | Session number, e.g. `6` |
+| `run` | number | Batch/run number within session, e.g. `1` |
+| `rows` | array | Row data objects (≤ 20 rows) |
 
-```json
-{
-  "branch": "CMA",
-  "session": 6,
-  "run": 1,
-  "rows": [ ... ]
-}
-```
+**Verification before delivery — check all three:**
+1. `result.exitCode == 0`
+2. `result.stdout` is non-empty
+3. `result.stdout` starts with `UEsD` (xlsx base64 magic bytes)
 
-**If `execute_code` times out:** reduce batch size from 20 to 15 rows and retry.
+If any check fails, do NOT call `render_content`. Report what failed and stop.
 
-After each `execute_code` call:
-- `outputFiles` non-empty → proceed to Step 9 delivery immediately
-- `outputFiles` empty → file NOT captured; do NOT claim a link; report and retry
+**If the script fails for any reason — STOP.** Do not write inline Python to replicate the script logic. The column schema in this guide is reference documentation, not a licence to rebuild the script inline. Report the exact blocker and wait for the user to resolve it.
+
+**If `run_skill_script` times out:** reduce batch size from 20 to 15 rows and retry.
 
 #### Column schema (15 columns, fixed order)
 
@@ -306,23 +288,21 @@ Examples: `Assessment_CMA_Session6_Run1.xlsx`, `Assessment_CMA_Session6_Run2.xls
 
 ### Step 9 — Deliver Files and Report
 
-**Mandatory for every batch. Never skip.**
+**Mandatory for every batch. Never skip. Deliver immediately after each run_skill_script call — do not queue.**
 
-Immediately after `execute_code` confirms the file was written, deliver via `render_content`:
+After verifying `result.stdout` starts with `UEsD`, deliver via `render_content`:
 
 ```
 render_content(
   displayType: "download",
   title: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
-  content: <base64-encoded file bytes from outputFiles>,
+  content: result.stdout,
   metadata: {
     filename: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   }
 )
 ```
-
-Confirm link visible before proceeding to next batch.
 
 After all batches delivered, output summary report (< 5KB — DynamoDB item size compliance):
 
@@ -385,20 +365,22 @@ Do NOT output individual answers, mapping details, search queries, or batch logs
 | Failure | Cause | Fix |
 |---|---|---|
 | Response cut off mid-run | Payload too large | Batch at ≤ 20 rows |
-| `execute_code` timeout | Inline Python literals or oversized payload | Pass rows as `input` JSON parameter; reduce to 15 rows if needed |
-| `run_skill_script` payload overflow | 100-row JSON too large | Use execute_code + build_assessment_batch.py |
+| `run_skill_script` timeout | Oversized payload | Reduce to 15 rows; retry |
 | `getSpreadsheetInfo` column not found | Column names vary by file | Always call getSpreadsheetInfo before querying |
 | Transcript evidence missing | Single broad VTT query | Use 3–4 targeted topic-cluster queries |
 | 0 rows from mapping CSV | Session stored as number, queried as string | Check sample values in getSpreadsheetInfo output |
-| FileNotFoundError after run_skill_script | Skill sandbox and code sandbox are isolated — files do not cross | Build xlsx inside `execute_code` only. Never use `run_skill_script` for production builds. |
-| Persona writes inline Python to build xlsx | Script failure with no halt-and-report instruction | If build_assessment_batch.py fails: STOP, report what failed, describe the fix needed, wait for user to update the script. Do not replicate script logic inline. |
+| `resolve_session_scope_v2.py` errors | Row key mismatch or rubric index issue | Stop and report exact error. Do not bypass with manual scope resolution. |
 | "HITL" appearing in Classification cell | `classification` set to `"HITL"` in row data | Set `"classification": ""` + `"hitl": true`. Never use `"HITL"` as a classification value. |
+| `result.stdout` empty after `run_skill_script` | Script errored silently | Check `result.stderr` and `result.exitCode`. Report and stop. |
+| `result.stdout` does not start with `UEsD` | Script did not output valid base64 | Check `result.exitCode` and `result.stderr`. Report and stop. Do not call render_content. |
+| render_content produces empty download | stdout was not valid base64 | Verify stdout starts with `UEsD` before delivering. |
+| FileNotFoundError when using execute_code | Script lives in skill sandbox, not code sandbox | Use `run_skill_script` only for `build_assessment_batch.py`. |
+| Persona writes inline Python to build xlsx | Script failure with no halt instruction | STOP, report what failed, describe the fix needed, wait for user to update the script. |
 | Over-generation of FB | FB bias applied before checking integrations | Check GR-1 first |
 | Wrong context (business vs. community) | AI evaluating business-client features | Scope to HOA community management (GR-2) |
 | StrongRoom/Vantaca conflation | Treating StrongRoom as native Vantaca | Tag system of record in Source lines (GR-3) |
 | Proximity missing | Old 14-column schema | 15 columns required; proximity is col 15 |
 | File not delivered as download link | `render_content` skipped | Call `render_content` after every successful batch |
-| `outputFiles` empty after execute_code | File not written | Check script writes to relative path; retry |
 | Wrong data product queried | Name guessed rather than matched to convention | Confirm data product name against Section 2c before querying |
 
 ---

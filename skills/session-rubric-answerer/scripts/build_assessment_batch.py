@@ -1,7 +1,10 @@
+import base64
+import io
 import json
 import sys
+
 from openpyxl import Workbook
-from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 # ---------------------------------------------------------------------------
@@ -16,7 +19,7 @@ session = str(data.get("session", "0")).strip()
 run = str(data.get("run", "1")).strip()
 
 if not rows:
-    print("ERROR: no rows in input")
+    print("ERROR: no rows in input", file=sys.stderr)
     sys.exit(1)
 
 # ---------------------------------------------------------------------------
@@ -37,20 +40,20 @@ def wrap_center():
 HEADER_FILL = fill("1F4E79")
 HEADER_FONT = font(bold=True, color="FFFFFF", size=11)
 
-# Classification fills — HITL rows get amber fill; cell value stays blank
+# Classification fills - HITL rows get amber fill; cell value stays blank
 CLASS_FILLS = {
     "AC": fill("70AD47"),
     "FB": fill("FF0000"),
     "PC": fill("4472C4"),
     "NA": fill("FFD966"),
-    "":   fill("FFC000"),  # amber for blank/HITL rows
+    "": fill("FFC000"),  # amber for blank/HITL rows
 }
 CLASS_FONTS = {
     "AC": font(bold=True, color="FFFFFF"),
     "FB": font(bold=True, color="FFFFFF"),
     "PC": font(bold=True, color="FFFFFF"),
     "NA": font(bold=True, color="000000"),
-    "":   font(bold=True, color="000000"),
+    "": font(bold=True, color="000000"),
 }
 
 # Proximity fills
@@ -60,7 +63,7 @@ PROX_FILLS = {
     "Moderate (~50%)": fill("FFD966"),
     "Low (~25%)": fill("F4B942"),
     "No match":        fill("FF0000"),
-    "":                fill("FFC000"),
+    "": fill("FFC000"),
 }
 PROX_FONTS = {
     "Exact match":     font(bold=True, color="FFFFFF"),
@@ -68,7 +71,7 @@ PROX_FONTS = {
     "Moderate (~50%)": font(bold=True, color="000000"),
     "Low (~25%)": font(bold=True, color="000000"),
     "No match":        font(bold=True, color="FFFFFF"),
-    "":                font(bold=True, color="000000"),
+    "": font(bold=True, color="000000"),
 }
 
 # Column widths for 15 columns
@@ -110,7 +113,7 @@ for row_idx, row in enumerate(rows, start=2):
     # --- Resolve classification ---
     raw_class = str(row.get("classification") or "").strip().upper()
 
-    # Strip "HITL" — it is never a valid cell value
+    # Strip "HITL" - it is never a valid cell value
     if raw_class == "HITL":
         raw_class = ""
 
@@ -143,7 +146,7 @@ for row_idx, row in enumerate(rows, start=2):
         row.get("discovery_question", ""),
         row.get("branch_answer", ""),
         row.get("townsq_capability", ""),
-        classification,  # col 13 — blank for HITL, code for classified
+        classification,  # col 13 - blank for HITL, code for classified
         row.get("assessor_notes", ""),
         proximity,       # col 15
     ]
@@ -167,8 +170,9 @@ for row_idx, row in enumerate(rows, start=2):
     ws.row_dimensions[row_idx].height = 80
 
 # ---------------------------------------------------------------------------
-# Save — filename: Assessment_{Branch}_Session{N}_Run{M}.xlsx
+# Always output as base64 to stdout
 # ---------------------------------------------------------------------------
-filename = f"Assessment_{branch}_Session{session}_Run{run}.xlsx"
-wb.save(filename)
-print(filename)
+buf = io.BytesIO()
+wb.save(buf)
+buf.seek(0)
+print(base64.b64encode(buf.read()).decode("utf-8"))
