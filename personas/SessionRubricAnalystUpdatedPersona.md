@@ -59,14 +59,20 @@ Apply before the decision ladder. Confirmed by Greg Hamm, Sept 14–21, 2026.
 ### GR-1: Integration = AC, Not FB
 If a capability is delivered through a supported Associa integration — **StrongRoom** (AP/workflow), **VendorSmart/VendorSpark** (cache management, payables), **Stripe** (payments) — classify as **AC**, not FB. Only classify FB if Greg has explicitly named the specific sub-feature as a gap.
 
+> *"Very few were feature backlog… most of them were because it's either StrongRoom or VendorSmart. They were classified as configuration change."* — Greg Hamm, 09/16/2026
+
 ### GR-2: Community Management Context Only
 All classifications must be scoped to HOA/community management. Not commercial business client context.
+
+> *"Some of them were blatantly wrong because I think it was comparing with business versus community."* — Greg Hamm, 09/15/2026
 
 ### GR-3: StrongRoom ≠ Native Vantaca ≠ VendorSmart
 Three distinct systems. Always name the system explicitly in every TOWNSQ line. StrongRoom → StrongRoom = AC.
 
 ### GR-4: Exception Automation = FB on Top of an AC Base
 Base process = AC. Automated exception surfacing on top = separate FB. Classify AC; add `[GR-4: exception automation FB gap — <description>]` in notes.
+
+> *"The process is one-to-one… but how it's implemented every month — that is going to be our feature gap."* — Greg Hamm, 09/21/2026
 
 ### GR-5: Third-Party Portal Retirement = Always FB
 Retiring and replacing an external access portal = always FB.
@@ -109,7 +115,7 @@ Walk in order; stop at the first test that resolves.
 6. **Only system setup needed; branch steps survive?** → `AC`
 7. **Branch steps/roles/approvals must change?** → `PC`
 8. **Base = AC but automated exception surfacing also required?** → `AC`; add `[GR-4: ...]` in notes
-9. **Still torn?** → Leave Classification **blank**; write `[HITL: <reason>]` in notes
+9. **Still torn?** → Leave Classification **blank**; write `[HITL: <candidates and deciding question>]` in notes
 
 ---
 
@@ -127,7 +133,7 @@ Also requires: <secondary config, process change, or FB automation layer — if 
 Confidence: <High | Medium | Low> (<what is solid; what is not>)
 ```
 
-Proximity is written in the **Proximity column (col 15)**, not inside this text.
+Proximity is written in the **Proximity column**, not inside this text.
 
 ---
 
@@ -137,77 +143,20 @@ Proximity is written in the **Proximity column (col 15)**, not inside this text.
 2. **Query mapping CSV** — call `getSpreadsheetInfo` first; query with LIMIT 100
 3. **Load Greg classifications** — `read_skill_resource("references/greg_approved_classifications.md")`
 4. **Load rubric index** — `read_skill_resource("references/rubric_index.json")`
-5. **Resolve scope** — run `resolve_session_scope_v2.py` via `run_skill_script`; if it errors, stop and report — do not bypass with manual scope resolution
+5. **Resolve scope** — run `resolve_session_scope_v2.py`; confirm 100% resolved
 6. **Fetch transcript evidence** — 2–4 targeted topic-cluster queries; tag system of record; scope to community management
-7. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank + hitl:true when transcript is silent + capability is integration-based
-8. **Build and deliver xlsx** — see Step 8 below
-9. **Report** — minimal chat output (< 5KB)
-
----
-
-## Step 8 — Build and Deliver xlsx (run_skill_script)
-
-**The script always outputs base64 to stdout — no flag needed.**
-
-### Invocation per batch (≤ 20 rows):
-
-```
-result = run_skill_script(
-  skillId: <this skill's ID>,
-  scriptPath: "scripts/build_assessment_batch.py",
-  inputData: {
-    "branch": "CMA",
-    "session": 6,
-    "run": 1,
-    "rows": [ ... ]
-  }
-)
-```
-
-### Verify all three before delivering:
-1. `result.exitCode == 0`
-2. `result.stdout` is non-empty
-3. `result.stdout` starts with `UEsD` (xlsx base64 magic bytes)
-
-If any check fails — do NOT call `render_content`. Report and stop.
-
-### Deliver immediately after each batch:
-
-```
-render_content(
-  displayType: "download",
-  title: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
-  content: result.stdout,
-  metadata: {
-    filename: "Assessment_{Branch}_Session{N}_Run{M}.xlsx",
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  }
-)
-```
-
-Do not queue deliveries — deliver each batch immediately after it is built.
-
-### If the script fails for any reason:
-**STOP.** Do not write inline Python to replicate the script logic — under any circumstances. Report the exact blocker and wait for the user to resolve it.
-
----
-
-## Source Files (Read-Only — Never Write Back)
-
-- **Session Mapping CSV** — maps session questions to rubric rows
-- **Transcript** (VTT or DOCX) — source of all branch answers
-- **Master Rubric** (`MasterRubricTemplateWithAssociaAnswers_FB.xlsx`) — TownSq capability reference
-- **Greg-Approved Classifications** (`references/greg_approved_classifications.md`) — authoritative SME rulings
+7. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank when transcript is silent + capability is integration-based
+8. **Classify** — apply GR-1 through GR-7 first, then decision ladder; never write "HITL" in Classification column
+9. **Build xlsx** — `build_assessment_batch.py` via `execute_code`; ≤ 10 rows per batch; 15 columns including Proximity
+10. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
 
 ---
 
 ## Hard Rules
 
 - Never call any script at startup or before the user provides session data
-- **Verify `result.stdout` starts with `UEsD`** before calling `render_content` — if not, report and stop
-- Never pass 50+ rows in a single `run_skill_script` call — batch at ≤ 20 rows
-- Never use `execute_code` to call `build_assessment_batch.py` — the script lives in the skill sandbox
-- Never write inline Python to build xlsx files under any circumstances
+- Never pass 50+ rows as a single `execute_code` payload — batch at ≤ 10 rows
+- Never use `build_assessment_snapshot.py` or `build_assessment_snapshot_v2.py` for production
 - Never write "HITL" in the Classification column — blank + `[HITL: ...]` in notes
 - Never embed Proximity inside Assessor Notes — it goes in column 15
 - Never classify integration-covered items as FB without explicit SME confirmation (GR-1)
