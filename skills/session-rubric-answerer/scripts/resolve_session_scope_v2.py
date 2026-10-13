@@ -49,7 +49,9 @@ def build_lookup(rubric_rows: list) -> tuple:
     for r in rubric_rows:
         uid = str(r.get("uid", "")).strip().upper()
         qid = str(r.get("qid", "")).strip()
-        dq  = normalize(r.get("discovery_question", ""))
+        if 'exact_master_rubric_question' in r and 'discovery_question' not in r:
+            r['discovery_question'] = r['exact_master_rubric_question']
+        dq  = normalize(r.get('discovery_question', ""))
         if uid:
             uid_lookup[uid] = r
         if qid:
