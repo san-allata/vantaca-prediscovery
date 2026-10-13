@@ -1,6 +1,6 @@
 # Session Processing Guide
 **Canonical operational guide for session-rubric-answerer**
-Last updated: 2026-09-25 — aligned with build_assessment_batch.py always-base64 output; corrected Step 8/9 to use run_skill_script stdout; fixed failure mode table; added Issue C (scope error halt) and Issue E (UEsD verification)
+Last updated: 2026-10-09 — added Section 3a (Metadata Integrity Contract); updated Step 1 query to include townsq_capability column; added Step 4b (evidence-to-UID anchoring); added pre-build verification to Step 8; updated column schema table with Source column; added metadata failure modes to Section 5.
 
 ---
 
@@ -51,13 +51,13 @@ Always call `getSpreadsheetInfo` first to verify column names. Then query:
 
 ```sql
 SELECT session, planned_question_id, uid, qid, capability, dimension, priority,
-       exact_master_rubric_question
+       exact_master_rubric_question, townsq_capability_what_townsq_supports_today
 FROM data
 WHERE session = <N>
 LIMIT 100
 ```
 
-**Known column names (Sessions_6_Master_Rubric_Mapping.csv as of 2026-09-10):**
+**Known column names (Session_1_Master_Rubric_Mapping_20261007.csv as of 2026-10-07):**
 
 | SQL name | Original name |
 |---|---|
@@ -69,10 +69,80 @@ LIMIT 100
 | `dimension` | Dimension |
 | `priority` | Priority |
 | `exact_master_rubric_question` | Exact Master Rubric Question |
+| `townsq_capability_what_townsq_supports_today` | TownSq Capability — what TownSq supports today |
 
 If column names differ, re-run `getSpreadsheetInfo` and adjust.
 
 **Expected row count per session:** 80–110 rows typical. If result is 0, check the session number filter value.
+
+**Immediately after querying — build a UID lookup dict:**
+
+```python
+rubric_rows = {row['uid']: row for row in query_results}
+```
+
+**All subsequent field population for any row MUST read from `rubric_rows[uid]`, never from memory, never from transcript evidence, never from data product search results.**
+
+---
+
+## 3a. Metadata Integrity Contract ⚠️ (MANDATORY — enforced before every batch build)
+
+### Rule 1: Master Rubric Fields Are Read-Only — Never Derived
+
+The following fields in every output row MUST be copied verbatim, character-for-character, from the mapping CSV query result stored in `rubric_rows[uid]`. They MAY NOT be inferred, paraphrased, summarised, truncated, corrected, or filled in from context, memory, or transcript evidence:
+
+| Output row field | Source — `rubric_rows[uid]` key |
+|---|---|
+| `uid` | `uid` |
+| `qid` | `qid` |
+| `session` | `session` |
+| `planned_question_id` | `planned_question_id` |
+| `capability` | `capability` |
+| `dimension` | `dimension` |
+| `priority` | `priority` |
+| `discovery_question` | `exact_master_rubric_question` |
+| `townsq_capability` | `townsq_capability_what_townsq_supports_today` |
+| `domain` | matched from `rubric_index` — must match exactly |
+| `cap_num` | matched from `rubric_index` — must match exactly |
+
+**If a CSV field is empty or null → output field is blank. Never substitute.**
+**If a CSV field was not retrieved → STOP. Re-query before proceeding. Do not fill from memory.**
+
+### Rule 2: Answer–UID Binding
+
+Every `branch_answer`, `classification`, `assessor_notes`, and `proximity` value is bound to one specific `(uid, exact_master_rubric_question)` pair. These four AI-written fields must correspond to the **specific question asked in col 10 for that UID** — never to a neighbouring row's question.
+
+Before writing any branch answer:
+1. Re-read the `exact_master_rubric_question` for that UID from `rubric_rows[uid]`
+2. Confirm the transcript evidence you are citing is an answer to *that specific question*, not a related but different question from the same session
+3. Do NOT reuse one evidence chunk as the answer for a different UID's question
+
+### Rule 3: TownSq Capability Is Also Read-Only
+
+`townsq_capability` (col 12) is sourced exclusively from the CSV column `townsq_capability_what_townsq_supports_today` for that UID. It is the rubric author's documented capability statement. The AI must not rewrite, paraphrase, or supplement it from data product search results. If the retrieved value appears mis-mapped or incomplete, note this in Assessor Notes — do not silently replace it.
+
+### Rule 4: Validation Gate Before Every Batch Build
+
+Before passing rows to `run_skill_script`, perform this check for each row in the batch:
+
+- [ ] `row['uid']` == `rubric_rows[uid]['uid']` — exact match
+- [ ] `row['dimension']` == `rubric_rows[uid]['dimension']` — exact string, not a synonym or summary
+- [ ] `row['discovery_question']` == `rubric_rows[uid]['exact_master_rubric_question']` — exact string
+- [ ] `row['townsq_capability']` == `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']` — exact string
+- [ ] `row['branch_answer']` Source citation references evidence relevant to `row['discovery_question']`
+
+**If any check fails:** correct the field from `rubric_rows[uid]`, or set `classification: ""` and `hitl: true` with `[HITL: metadata mismatch — field X does not match CSV for this UID]` in notes.
+
+Print a one-line pre-build report before each `run_skill_script` call:
+```
+Pre-build: [N] rows — UIDs [Q0089, Q0090, ...] — all metadata sourced from CSV ✓
+```
+Or, if mismatches were found and corrected:
+```
+Pre-build: [N] rows — corrected: [list of UIDs and fields fixed] — proceeding
+```
+
+---
 
 ### Step 2 — Load Rubric Index
 
@@ -119,6 +189,22 @@ Example split for a Financial Operations session:
 
 **System-of-record tagging (GR-3):** Tag each evidence piece: `[StrongRoom]`, `[VendorSmart]`, `[native Vantaca]`, `[Stripe]`, `[other]`. This tag must appear in the Source line.
 
+---
+
+### Step 4b — Anchor Evidence to UIDs ⚠️ (MANDATORY before extracting answers)
+
+After fetching transcript evidence, before writing any branch answer:
+
+1. List every UID and its `exact_master_rubric_question` from `rubric_rows`
+2. For each retrieved evidence chunk, identify which specific UID(s) it is relevant to — based on that UID's question text, not on a broad topic label
+3. Write each branch answer only from evidence relevant to that UID's own question
+4. Do NOT reuse one evidence chunk as the answer for a different UID's question
+
+**Example of the problem this prevents:**
+Evidence about "how invoices are received" is relevant to Q0089 ("Walk through your AP process step by step") and Q0106 ("Are paper invoices still received...") — but these are different questions requiring different scope and emphasis. Evidence scoped to Q0089's full process walk-through must not be reused wholesale as Q0106's paper-invoice answer.
+
+---
+
 ### Step 5 — Split Rows into Capability-Group Batches
 
 **Rule: ≤ 20 rows per batch.**
@@ -136,13 +222,14 @@ If a single capability group > 20 rows, split alphabetically by dimension.
 ### Step 6 — Extract Branch Answers
 
 For each row:
-1. Check `references/greg_approved_classifications.md` — if topic matches a Greg ruling, use it as authoritative context
-2. Search retrieved transcript evidence
-3. Scope to community management context (GR-2)
-4. Tag system of record in Source line (GR-3)
-5. Write `branch_answer`: `"{answer}\n\nSource: {file} [{timestamp}, {speaker}] [system: {system-of-record}]"`
-6. If partial: append `"\n\nGAPS: {what is missing}"`
-7. If not found: `"Not Found — {brief reason}\n\nSource: {file} (full transcript reviewed; topic not addressed)\n\nGAPS: {topic} not discussed in this session"`
+1. Read the `exact_master_rubric_question` for this UID from `rubric_rows[uid]` — answer *that* question, nothing else
+2. Check `references/greg_approved_classifications.md` — if topic matches a Greg ruling, use it as authoritative context
+3. Search retrieved transcript evidence scoped to this UID's question (per Step 4b)
+4. Scope to community management context (GR-2)
+5. Tag system of record in Source line (GR-3)
+6. Write `branch_answer`: `"{answer}\n\nSource: {file} [{timestamp}, {speaker}] [system: {system-of-record}]"`
+7. If partial: append `"\n\nGAPS: {what is missing}"`
+8. If not found: `"Not Found — {brief reason}\n\nSource: {file} (full transcript reviewed; topic not addressed)\n\nGAPS: {topic} not discussed in this session"`
 
 **HITL threshold:** When transcript is silent AND capability references a third-party integration (not native Vantaca), set `"classification": ""` and `"hitl": true`. Write `[HITL: integration applicability unconfirmed — transcript silent]` in `assessor_notes`.
 
@@ -189,6 +276,8 @@ The build script applies amber fill to the Classification cell automatically for
 
 ### Step 8 — Build Assessment xlsx (BATCHED via run_skill_script)
 
+**Run the pre-build validation gate (Section 3a Rule 4) before every call.**
+
 Call `build_assessment_batch.py` via **`run_skill_script`**. The script always outputs the xlsx as base64 to stdout — no extra flag or parameter is needed.
 
 #### Why `run_skill_script`, not `execute_code`
@@ -217,7 +306,7 @@ result = run_skill_script(
 | `branch` | string | Branch name, e.g. `"CMA"` |
 | `session` | number | Session number, e.g. `6` |
 | `run` | number | Batch/run number within session, e.g. `1` |
-| `rows` | array | Row data objects (≤ 20 rows) |
+| `rows` | array | Row data objects (≤ 20 rows) — all metadata fields sourced from `rubric_rows[uid]` |
 
 **Verification before delivery — check all three:**
 1. `result.exitCode == 0`
@@ -232,23 +321,23 @@ If any check fails, do NOT call `render_content`. Report what failed and stop.
 
 #### Column schema (15 columns, fixed order)
 
-| # | Column | Valid values |
-|---|---|---|
-| 1 | UID | |
-| 2 | QID | |
-| 3 | Session | |
-| 4 | Planned Question ID | |
-| 5 | Domain | |
-| 6 | Cap # | |
-| 7 | Capability | |
-| 8 | Dimension | |
-| 9 | Priority | |
-| 10 | Discovery Question | |
-| 11 | Branch Answer | |
-| 12 | TownSq Capability | |
-| 13 | Classification | `PC`, `AC`, `FB`, `NA`, or **blank**. Never `HITL`. Amber fill = HITL. |
-| 14 | Assessor Notes | `[HITL: ...]`, `[RECOMMENDATION: ...]`, `[GR-N: ...]` as applicable. |
-| 15 | Proximity | `Exact match`, `High (~75%)`, `Moderate (~50%)`, `Low (~25%)`, `No match`, or blank. |
+| # | Column | Source | Valid values |
+|---|---|---|---|
+| 1 | UID | **Copied verbatim from CSV** | — |
+| 2 | QID | **Copied verbatim from CSV** | — |
+| 3 | Session | **Copied verbatim from CSV** | — |
+| 4 | Planned Question ID | **Copied verbatim from CSV** | — |
+| 5 | Domain | **Copied verbatim from rubric_index** | — |
+| 6 | Cap # | **Copied verbatim from rubric_index** | — |
+| 7 | Capability | **Copied verbatim from CSV** | — |
+| 8 | Dimension | **Copied verbatim from CSV** | — |
+| 9 | Priority | **Copied verbatim from CSV** | — |
+| 10 | Discovery Question | **Copied verbatim from CSV** (`exact_master_rubric_question`) | — |
+| 11 | Branch Answer | **AI-written** — grounded in transcript | — |
+| 12 | TownSq Capability | **Copied verbatim from CSV** (`townsq_capability_what_townsq_supports_today`) | — |
+| 13 | Classification | **AI-written** | `PC`, `AC`, `FB`, `NA`, or **blank**. Never `HITL`. Amber fill = HITL. |
+| 14 | Assessor Notes | **AI-written** | `[HITL: ...]`, `[RECOMMENDATION: ...]`, `[GR-N: ...]` as applicable. |
+| 15 | Proximity | **AI-written** | `Exact match`, `High (~75%)`, `Moderate (~50%)`, `Low (~25%)`, `No match`, or blank. |
 
 #### Classification color map (column 13)
 
@@ -358,6 +447,8 @@ Do NOT output individual answers, mapping details, search queries, or batch logs
 **`proximity`**: `"Exact match"` / `"High (~75%)"` / `"Moderate (~50%)"` / `"Low (~25%)"` / `"No match"` / `""` (blank for HITL).
 **`hitl`**: `true` for blank-classification rows. Script applies amber fill; cell value stays blank.
 
+**All fields in columns 1–10 and 12 must be populated exclusively from `rubric_rows[uid]`, not from memory or transcript evidence.**
+
 ---
 
 ## 5. Known Failure Modes & Fixes
@@ -382,6 +473,10 @@ Do NOT output individual answers, mapping details, search queries, or batch logs
 | Proximity missing | Old 14-column schema | 15 columns required; proximity is col 15 |
 | File not delivered as download link | `render_content` skipped | Call `render_content` after every successful batch |
 | Wrong data product queried | Name guessed rather than matched to convention | Confirm data product name against Section 2c before querying |
+| Wrong Dimension or Discovery Question in output | Fields derived from context instead of copied from CSV | Always read dimension and discovery_question from `rubric_rows[uid]`. Run Section 3a Rule 4 gate before every batch build. |
+| TownSq Capability rewritten in output | AI paraphrased or replaced capability from search results | Read townsq_capability exclusively from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`. |
+| Branch answer answers wrong question | Evidence not anchored to UID before extraction | Follow Step 4b. Re-read `exact_master_rubric_question` from `rubric_rows[uid]` before writing each answer. |
+| Metadata field missing — not in query result | townsq_capability not selected in Step 1 query | Use the updated Step 1 query that includes `townsq_capability_what_townsq_supports_today`. Re-query if missing. |
 
 ---
 
@@ -394,6 +489,7 @@ Do NOT output individual answers, mapping details, search queries, or batch logs
 - **Synthesize only explicit statements** — no inference
 - **Not Found is valid** — use it when transcript is genuinely silent
 - **GAPS line required** when some sub-parts of a multi-part question are unanswered
+- **Anchor evidence to the specific UID question** — do not reuse evidence for a different UID's question (see Step 4b)
 
 ---
 

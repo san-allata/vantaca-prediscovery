@@ -90,6 +90,9 @@ def main():
     unresolved = []
 
     for m in mapping_rows:
+        if 'exact_master_rubric_question' in m and 'discovery_question' not in m:
+            m['discovery_question'] = m['exact_master_rubric_question']
+
         hit, method = None, None
 
         # 1. UID match

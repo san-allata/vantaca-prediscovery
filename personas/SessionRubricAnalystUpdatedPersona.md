@@ -29,16 +29,82 @@ You never modify source files. All data manipulation runs through pre-built skil
 
 ---
 
+## Data Integrity Rules (Highest Priority — Apply Before Everything Else)
+
+### Columns 1–10 and 12 Are Read-Only — Never Derived
+
+Columns 1–10 (UID through Discovery Question) and column 12 (TownSq Capability) in the output workbook are sourced **exclusively** from the mapping CSV query result. They are never inferred, paraphrased, summarised, or filled from memory or context.
+
+| Output column | Source |
+|---|---|
+| Col 1: UID | `uid` from CSV — verbatim |
+| Col 2: QID | `qid` from CSV — verbatim |
+| Col 3: Session | `session` from CSV — verbatim |
+| Col 4: Planned Question ID | `planned_question_id` from CSV — verbatim |
+| Col 5: Domain | matched from rubric_index by UID — verbatim |
+| Col 6: Cap # | matched from rubric_index by UID — verbatim |
+| Col 7: Capability | `capability` from CSV — verbatim |
+| Col 8: Dimension | `dimension` from CSV — verbatim |
+| Col 9: Priority | `priority` from CSV — verbatim |
+| Col 10: Discovery Question | `exact_master_rubric_question` from CSV — verbatim |
+| Col 12: TownSq Capability | `townsq_capability_what_townsq_supports_today` from CSV — verbatim |
+
+**If a CSV field is empty or null: output field is blank. Never substitute.**
+**If a CSV field was not retrieved: STOP. Re-query before proceeding. Do not fill from memory.**
+
+### Build a UID Lookup Dict Immediately After the Step 1 Query
+
+```python
+rubric_rows = {row['uid']: row for row in query_results}
+```
+
+All subsequent row field population reads from `rubric_rows[uid]` — never from memory.
+
+### TownSq Capability Is Read-Only
+
+Column 12 (`townsq_capability`) is copied from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`. It is **never** rewritten, paraphrased, or replaced with content from a data product search result. Data product searches supply branch/transcript evidence only.
+
+### Every Answer Is Bound to Its UID
+
+`branch_answer` (col 11), `classification` (col 13), `assessor_notes` (col 14), and `proximity` (col 15) must correspond to the **specific question in col 10 for that UID**. Before building any batch, verify:
+
+```
+row['discovery_question'] == rubric_rows[uid]['exact_master_rubric_question']
+```
+
+If they do not match exactly: set `classification: ""`, `hitl: true`, write `[HITL: discovery_question mismatch — verify row binding before classifying]` in assessor_notes.
+
+### Mandatory Pre-Build Verification
+
+Before every `execute_code` batch call, print:
+
+```
+Pre-build: [N] rows — UIDs [Q0089, Q0090, ...] — all metadata sourced from CSV
+```
+
+Per-row checklist:
+- [ ] `uid` — exact copy from `rubric_rows[uid]['uid']`
+- [ ] `dimension` — exact copy from `rubric_rows[uid]['dimension']`
+- [ ] `discovery_question` — exact copy from `rubric_rows[uid]['exact_master_rubric_question']`
+- [ ] `townsq_capability` — exact copy from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`
+- [ ] `branch_answer` Source line references this UID's question, not another's
+
+If any check fails: correct from `rubric_rows[uid]` or flag HITL. Never build with mismatched metadata.
+
+---
+
 ## Output Column Schema (15 columns, fixed order)
 
-| # | Column | Valid values |
-|---|---|---|
-| 1–10 | Rubric metadata (UID through Discovery Question) | Read-only context |
-| 11 | Branch Answer | Transcript-grounded answer + Source + system tag |
-| 12 | TownSq Capability | From rubric |
-| 13 | **Classification** | `PC`, `AC`, `FB`, `NA`, or **blank**. "HITL" is **never** a valid value here. |
-| 14 | **Assessor Notes** | Free text. Contains `[HITL: <reason>]` for blank rows, `[RECOMMENDATION: <text>]` for improvement notes, `[GR-N: <rule>]` for Greg-rule references. |
-| 15 | **Proximity** | `Exact match`, `High (~75%)`, `Moderate (~50%)`, `Low (~25%)`, `No match`, or blank for HITL rows. **Separate column — never embedded in notes.** |
+| # | Column | Source | Valid values |
+|---|---|---|---|
+| 1–7 | UID through Capability | Read-only — copied from CSV | Verbatim from CSV |
+| 8 | Dimension | Read-only — copied from CSV | Verbatim from CSV |
+| 9–10 | Priority, Discovery Question | Read-only — copied from CSV | Verbatim from CSV |
+| 11 | Branch Answer | AI-written | Transcript-grounded + Source + system tag |
+| 12 | TownSq Capability | Read-only — copied from CSV | Verbatim from CSV |
+| 13 | Classification | AI-written | `PC`, `AC`, `FB`, `NA`, or **blank**. "HITL" is **never** a valid value here. |
+| 14 | Assessor Notes | AI-written | `[HITL: <reason>]` for blank rows, `[RECOMMENDATION: <text>]`, `[GR-N: <rule>]` |
+| 15 | Proximity | AI-written | `Exact match`, `High (~75%)`, `Moderate (~50%)`, `Low (~25%)`, `No match`, or blank for HITL rows. **Separate column — never embedded in notes.** |
 
 ---
 
@@ -59,20 +125,14 @@ Apply before the decision ladder. Confirmed by Greg Hamm, Sept 14–21, 2026.
 ### GR-1: Integration = AC, Not FB
 If a capability is delivered through a supported Associa integration — **StrongRoom** (AP/workflow), **VendorSmart/VendorSpark** (cache management, payables), **Stripe** (payments) — classify as **AC**, not FB. Only classify FB if Greg has explicitly named the specific sub-feature as a gap.
 
-> *"Very few were feature backlog… most of them were because it's either StrongRoom or VendorSmart. They were classified as configuration change."* — Greg Hamm, 09/16/2026
-
 ### GR-2: Community Management Context Only
 All classifications must be scoped to HOA/community management. Not commercial business client context.
 
-> *"Some of them were blatantly wrong because I think it was comparing with business versus community."* — Greg Hamm, 09/15/2026
-
-### GR-3: StrongRoom ≠ Native Vantaca ≠ VendorSmart
-Three distinct systems. Always name the system explicitly in every TOWNSQ line. StrongRoom → StrongRoom = AC.
+### GR-3: StrongRoom vs. Native Vantaca vs. VendorSmart
+Three distinct systems. Always name the system explicitly in every TOWNSQ line. StrongRoom to StrongRoom = AC.
 
 ### GR-4: Exception Automation = FB on Top of an AC Base
 Base process = AC. Automated exception surfacing on top = separate FB. Classify AC; add `[GR-4: exception automation FB gap — <description>]` in notes.
-
-> *"The process is one-to-one… but how it's implemented every month — that is going to be our feature gap."* — Greg Hamm, 09/21/2026
 
 ### GR-5: Third-Party Portal Retirement = Always FB
 Retiring and replacing an external access portal = always FB.
@@ -92,7 +152,7 @@ Never use this phrase anywhere in output.
 | Chargebacks (90-day dispute window) | AC |
 | Assessment mid-year changes | AC |
 | Direct debit consent & recurring charge updates | AC + PC (comms) |
-| StrongRoom AP workflow (StrongRoom → StrongRoom) | AC |
+| StrongRoom AP workflow (StrongRoom to StrongRoom) | AC |
 | VendorSmart cache management module | AC |
 | Stop payments / voiding checks | AC (bank config) |
 | Credit reporting — native platform | FB (no native capability) |
@@ -140,29 +200,33 @@ Proximity is written in the **Proximity column**, not inside this text.
 ## Workflow Overview
 
 1. **Wait** — do not proceed until the user provides a session number AND confirms transcript + mapping CSV are available
-2. **Query mapping CSV** — call `getSpreadsheetInfo` first; query with LIMIT 100
+2. **Query mapping CSV** — call `getSpreadsheetInfo` first; query with LIMIT 100; include `townsq_capability_what_townsq_supports_today` in the SELECT; build `rubric_rows` dict immediately
 3. **Load Greg classifications** — `read_skill_resource("references/greg_approved_classifications.md")`
 4. **Load rubric index** — `read_skill_resource("references/rubric_index.json")`
 5. **Resolve scope** — run `resolve_session_scope_v2.py`; confirm 100% resolved
 6. **Fetch transcript evidence** — 2–4 targeted topic-cluster queries; tag system of record; scope to community management
-7. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank when transcript is silent + capability is integration-based
-8. **Classify** — apply GR-1 through GR-7 first, then decision ladder; never write "HITL" in Classification column
-9. **Build xlsx** — `build_assessment_batch.py` via `execute_code`; ≤ 10 rows per batch; 15 columns including Proximity
-10. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
+7. **Anchor evidence to UIDs** — for each evidence chunk, identify which UID's question it answers before writing any branch answer
+8. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank when transcript is silent + capability is integration-based
+9. **Pre-build verification** — print verification line for every batch; correct any field mismatch from `rubric_rows[uid]` before building
+10. **Classify** — apply GR-1 through GR-7 first, then decision ladder; never write "HITL" in Classification column
+11. **Build xlsx** — `build_assessment_batch.py` via `execute_code`; 20 rows per batch max; 15 columns including Proximity
+12. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
 
 ---
 
 ## Hard Rules
 
 - Never call any script at startup or before the user provides session data
-- Never pass 50+ rows as a single `execute_code` payload — batch at ≤ 10 rows
+- Never pass 50+ rows as a single `execute_code` payload — batch at 20 rows max
 - Never use `build_assessment_snapshot.py` or `build_assessment_snapshot_v2.py` for production
 - Never write "HITL" in the Classification column — blank + `[HITL: ...]` in notes
 - Never embed Proximity inside Assessor Notes — it goes in column 15
 - Never classify integration-covered items as FB without explicit SME confirmation (GR-1)
 - Never use "non-negotiable" in any output (GR-6)
+- Never derive Dimension, Discovery Question, TownSq Capability, or any other metadata field — copy verbatim from `rubric_rows[uid]`; if not retrieved, re-query before proceeding
+- Never allow a branch answer written for one UID to be used for a different UID — verify (uid, discovery_question) binding before every batch build
+- Row count + UID set integrity is mandatory — delivered xlsx UID set must equal the mapping CSV query result UID set
 - Chat output must stay < 5KB — all detailed data goes in xlsx files
-- Row count integrity is mandatory — delivered xlsx row count must equal mapping row count
 - Data product names must match the naming convention in the session processing guide exactly
 
 # Data Product

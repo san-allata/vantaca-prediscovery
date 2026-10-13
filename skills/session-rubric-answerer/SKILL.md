@@ -87,7 +87,19 @@ Call `read_skill_resource` with `resourcePath: "references/rubric_index.json"` a
 Call `resolve_session_scope_v2.py` via **`run_skill_script`**. Confirm 100% resolved before proceeding.
 If the script errors, stop and report the exact error. Do not substitute manual scope resolution from mapping query context — the two are not equivalent.
 
-### Step 5 — Fetch transcript evidence (batched by topic)
+### Step 4b — Anchor Evidence to UIDs Before Proceeding
+
+After fetching transcript evidence, before extracting answers:
+
+1. Write out the list of UIDs and their `exact_master_rubric_question` from the CSV
+2. For each evidence chunk retrieved, note which UID(s) it is relevant to
+3. Do NOT reuse one evidence chunk as the answer for a different UID's question
+
+This prevents evidence intended for Q0089 ("Walk through your AP process step by step")
+from being written as the answer for Q0106 ("Are paper invoices still received...").
+
+### Step 5 — Fetch transcript
+ evidence (batched by topic)
 Make **2–4 targeted** `get_information_from_dataProduct` calls, each covering a distinct topic cluster. Tag system of record (`[native Vantaca]`, `[StrongRoom]`, `[VendorSmart]`, `[Stripe]`, `[other]`) on every evidence piece. Scope all evidence to **HOA/community management** context (GR-2).
 
 ### Step 6 — Extract branch answers
@@ -155,6 +167,19 @@ render_content(
 
 **Batch at ≤ 20 rows.** Reduce to 15 if timeout occurs.
 
+### Pre-build row verification (MANDATORY)
+
+Before passing rows to execute_code, for each row confirm:
+
+1. `row['dimension']` == `csv_data[uid]['dimension']` (exact string)
+2. `row['discovery_question']` == `csv_data[uid]['exact_master_rubric_question']` (exact string)
+3. `row['townsq_capability']` was read from the CSV TownSq capability column for this UID
+
+If any field was derived rather than copied → correct it from the CSV before building.
+Print a pre-build validation report:
+  "Pre-build check: [N] rows — all metadata verified" or
+  "Pre-build check: [N] rows — WARNING: [list of UIDs with field mismatches]"
+  
 ### Step 9 — Deliver files and Report
 
 **Every generated xlsx MUST be delivered as a clickable download link.** Deliver each batch immediately after its `run_skill_script` call — do not queue all deliveries for the end.
@@ -186,23 +211,23 @@ After all files delivered, output minimal summary report (< 5KB):
 
 ## Workbook Column Schema (15 columns)
 
-| # | Column | Notes |
-|---|---|---|
-| 1 | UID | |
-| 2 | QID | |
-| 3 | Session | |
-| 4 | Planned Question ID | |
-| 5 | Domain | |
-| 6 | Cap # | |
-| 7 | Capability | |
-| 8 | Dimension | |
-| 9 | Priority | |
-| 10 | Discovery Question | |
-| 11 | Branch Answer | |
-| 12 | TownSq Capability | |
-| 13 | Classification | `"PC"`, `"AC"`, `"FB"`, `"NA"`, or `""`. **Never `"HITL"`**. HITL rows: `""` + amber fill (applied by script). |
-| 14 | Assessor Notes | Contains `[HITL: <reason>]` for blank rows, `[RECOMMENDATION: ...]`, `[GR-N: ...]` as applicable. |
-| 15 | Proximity | `"Exact match"`, `"High (~75%)"`, `"Moderate (~50%)"`, `"Low (~25%)"`, `"No match"`, or `""`. Blank for HITL rows. |
+| # | Column | Source | Notes |
+|---|---|---|---|
+| 1 | UID | **Copied verbatim from CSV** | Never derived |
+| 2 | QID | **Copied verbatim from CSV** | Never derived |
+| 3 | Session | **Copied verbatim from CSV** | Never derived |
+| 4 | Planned Question ID | **Copied verbatim from CSV** | Never derived |
+| 5 | Domain | **Copied verbatim from CSV / rubric_index** | Never derived |
+| 6 | Cap # | **Copied verbatim from CSV / rubric_index** | Never derived |
+| 7 | Capability | **Copied verbatim from CSV** | Never derived |
+| 8 | Dimension | **Copied verbatim from CSV** | Never derived |
+| 9 | Priority | **Copied verbatim from CSV** | Never derived |
+| 10 | Discovery Question | **Copied verbatim from CSV** (`exact_master_rubric_question`) | Never derived |
+| 11 | Branch Answer | **AI-written** | Grounded in transcript + docs |
+| 12 | TownSq Capability | **Copied verbatim from CSV** (`townsq_capability` column) | Never rewritten |
+| 13 | Classification | **AI-written** | `PC`, `AC`, `FB`, `NA`, or blank |
+| 14 | Assessor Notes | **AI-written** | Structured format |
+| 15 | Proximity | **AI-written** | Separate column, never in notes |
 
 ---
 
