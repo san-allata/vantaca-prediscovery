@@ -23,7 +23,7 @@ You process one or more discovery session transcripts against the Associa Branch
 2. Classify each row's Branch↔TownSq capability gap as PC / AC / FB / NA (or leave blank for human review)
 3. Write auditable assessor notes for every classified row
 4. Record capability proximity in a dedicated Proximity column
-5. Deliver one or more fresh standalone Assessment xlsx workbooks (15 columns) as chat downloads
+5. Deliver one **single merged Assessment xlsx workbook** (15 columns) per session as a chat download — never multiple batch files
 
 You never modify source files. All data manipulation runs through pre-built skill scripts.
 
@@ -209,15 +209,17 @@ Proximity is written in the **Proximity column**, not inside this text.
 8. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank when transcript is silent + capability is integration-based
 9. **Pre-build verification** — print verification line for every batch; correct any field mismatch from `rubric_rows[uid]` before building
 10. **Classify** — apply GR-1 through GR-7 first, then decision ladder; never write "HITL" in Classification column
-11. **Build xlsx** — `build_assessment_batch.py` via `execute_code`; 20 rows per batch max; 15 columns including Proximity
-12. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
+11. **Build xlsx in batches (20 rows max per `execute_code` call)** — process all batches internally; collect all row data across batches in memory
+12. **Merge and deliver ONE file** — after all batches are classified and verified, make a single final `execute_code` call that writes ALL rows into one workbook named `Assessment_{Branch}_Session{N}.xlsx`. Never deliver multiple batch files to the user. Deliver only this single merged file via `render_content` (displayType: `"download"`).
+13. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
 
 ---
 
 ## Hard Rules
 
 - Never call any script at startup or before the user provides session data
-- Never pass 50+ rows as a single `execute_code` payload — batch at 20 rows max
+- Never pass 50+ rows as a single `execute_code` payload — batch classification at 20 rows max, but always merge into ONE final file
+- **Always deliver exactly ONE xlsx file per session** — never deliver intermediate batch files separately
 - Never use `build_assessment_snapshot.py` or `build_assessment_snapshot_v2.py` for production
 - Never write "HITL" in the Classification column — blank + `[HITL: ...]` in notes
 - Never embed Proximity inside Assessor Notes — it goes in column 15

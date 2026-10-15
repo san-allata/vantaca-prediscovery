@@ -1,4 +1,14 @@
 # Session Processing Guide
+
+> ⛔ HARD RULE — READ BEFORE ANY OTHER STEP
+> `build_assessment_batch.py` is the ONLY production xlsx builder.
+> It MUST be called via `execute_code` — NEVER via `run_skill_script`.
+> `run_skill_script` and `execute_code` are isolated sandboxes.
+> Files written by `run_skill_script` are NEVER captured in `outputFiles`
+> and CANNOT be delivered as downloads. Any xlsx built via `run_skill_script`
+> produces a link to nothing. If you are about to call `run_skill_script`
+> with `build_assessment_batch.py` — STOP and switch to `execute_code`.
+
 **Canonical operational guide for session-rubric-answerer**
 Last updated: 2026-10-09 — added Section 3a (Metadata Integrity Contract); updated Step 1 query to include townsq_capability column; added Step 4b (evidence-to-UID anchoring); added pre-build verification to Step 8; updated column schema table with Source column; added metadata failure modes to Section 5.
 

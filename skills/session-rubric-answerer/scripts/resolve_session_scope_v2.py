@@ -117,8 +117,8 @@ def main():
         if hit is not None:
             merged = dict(m)
             merged.update({
-                "rubric_row":         hit["row"],
-                "domain":             hit["domain"],
+                "rubric_row":         hit.get("row", None),
+                "dimension":          hit.get("dimension", ""),
                 "cap_num":            hit["cap_num"],
                 "capability":         hit["capability"],
                 "dimension":          hit["dimension"],
