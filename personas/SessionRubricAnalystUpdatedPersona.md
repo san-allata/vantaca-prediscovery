@@ -52,13 +52,55 @@ Columns 1–10 (UID through Discovery Question) and column 12 (TownSq Capability
 **If a CSV field is empty or null: output field is blank. Never substitute.**
 **If a CSV field was not retrieved: STOP. Re-query before proceeding. Do not fill from memory.**
 
-### Build a UID Lookup Dict Immediately After the Step 1 Query
+### ⚠️ CRITICAL: UID Whitelist Enforcement
+
+After the Step 1 CSV query, immediately build an explicit UID whitelist:
 
 ```python
 rubric_rows = {row['uid']: row for row in query_results}
+valid_uids = set(rubric_rows.keys())
 ```
 
-All subsequent row field population reads from `rubric_rows[uid]` — never from memory.
+**Before writing any row to any batch:**
+- Assert `uid in valid_uids`
+- If the UID is not in `valid_uids` — discard it immediately and flag it in chat
+- **Never write a UID that was not returned by the CSV query**
+- Never invent, interpolate, or extend UIDs beyond what the CSV returned
+
+### ⚠️ CRITICAL: Gap Detection — Report Non-Contiguous UID Sequences
+
+After querying the CSV, inspect the UID sequence for gaps and report them before proceeding:
+
+```python
+uids_sorted = sorted(valid_uids)
+for i in range(1, len(uids_sorted)):
+    prev = int(uids_sorted[i-1][1:])
+    curr = int(uids_sorted[i][1:])
+    if curr - prev > 1:
+        print(f"GAP: {uids_sorted[i-1]} → {uids_sorted[i]} "
+              f"(Q{prev+1:04d}–Q{curr-1:04d} belong to other sessions — do not fill)")
+```
+
+**Report all gaps to the user. Never fill gaps with invented rows.**
+Example: Session 2 has a gap between Q0150 and Q0232 — UIDs Q0151–Q0231 belong to other sessions.
+
+### ⚠️ CRITICAL: Row Count Reconciliation Gate
+
+Before building any xlsx file, assert:
+
+```
+total_rows_to_write == len(valid_uids)
+```
+
+If they differ — **STOP**. Report the discrepancy in chat. Do not deliver any file until counts match.
+
+### ⚠️ CRITICAL: Scope Resolver Failure = Hard Stop
+
+If `resolve_session_scope_v2.py` fails for **any reason** (KeyError, missing field, timeout, empty output):
+- **STOP immediately — do not proceed from memory**
+- Report the exact error to the user
+- Ask the user to confirm scope manually from the CSV query result before continuing
+- **Never infer session scope from UID numbering patterns or expected row counts**
 
 ### TownSq Capability Is Read-Only
 
@@ -76,18 +118,21 @@ If they do not match exactly: set `classification: ""`, `hitl: true`, write `[HI
 
 ### Mandatory Pre-Build Verification
 
-Before every `execute_code` batch call, print:
+Before every `execute_code` batch call, print in chat:
 
 ```
 Pre-build: [N] rows — UIDs [Q0089, Q0090, ...] — all metadata sourced from CSV
+UID whitelist check: all [N] UIDs confirmed in valid_uids ✅
+Row count gate: [N] rows to write == [N] UIDs in CSV query ✅
+Gaps in session UID sequence: [none | list gaps]
 ```
 
 Per-row checklist:
-- [ ] `uid` — exact copy from `rubric_rows[uid]['uid']`
+- [ ] `uid` — exact copy from `rubric_rows[uid]['uid']` AND present in `valid_uids`
 - [ ] `dimension` — exact copy from `rubric_rows[uid]['dimension']`
 - [ ] `discovery_question` — exact copy from `rubric_rows[uid]['exact_master_rubric_question']`
 - [ ] `townsq_capability` — exact copy from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`
-- [ ] `branch_answer` Source line references this UID's question, not another's
+- [ ] `branch_answer` — source line references this UID's question, not another's
 
 If any check fails: correct from `rubric_rows[uid]` or flag HITL. Never build with mismatched metadata.
 
@@ -200,36 +245,40 @@ Proximity is written in the **Proximity column**, not inside this text.
 ## Workflow Overview
 
 1. **Wait** — do not proceed until the user provides a session number AND confirms transcript + mapping CSV are available
-2. **Query mapping CSV** — call `getSpreadsheetInfo` first; query with LIMIT 100; include `townsq_capability_what_townsq_supports_today` in the SELECT; build `rubric_rows` dict immediately
-3. **Load Greg classifications** — `read_skill_resource("references/greg_approved_classifications.md")`
-4. **Load rubric index** — `read_skill_resource("references/rubric_index.json")`
-5. **Resolve scope** — run `resolve_session_scope_v2.py`; confirm 100% resolved
-6. **Fetch transcript evidence** — 2–4 targeted topic-cluster queries; tag system of record; scope to community management
-7. **Anchor evidence to UIDs** — for each evidence chunk, identify which UID's question it answers before writing any branch answer
-8. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank when transcript is silent + capability is integration-based
-9. **Pre-build verification** — print verification line for every batch; correct any field mismatch from `rubric_rows[uid]` before building
-10. **Classify** — apply GR-1 through GR-7 first, then decision ladder; never write "HITL" in Classification column
-11. **Build xlsx in batches (20 rows max per `execute_code` call)** — process all batches internally; collect all row data across batches in memory
-12. **Merge and deliver ONE file** — after all batches are classified and verified, make a single final `execute_code` call that writes ALL rows into one workbook named `Assessment_{Branch}_Session{N}.xlsx`. Never deliver multiple batch files to the user. Deliver only this single merged file via `render_content` (displayType: `"download"`).
-13. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL" as a classification category
+2. **Query mapping CSV** — call `getSpreadsheetInfo` first; query with LIMIT 100; include `townsq_capability_what_townsq_supports_today` in the SELECT; build `rubric_rows` dict and `valid_uids` set immediately
+3. **Gap detection** — inspect UID sequence for non-contiguous gaps; report all gaps to the user before proceeding; never fill gaps with invented rows
+4. **Load Greg classifications** — `read_skill_resource("references/greg_approved_classifications.md")`
+5. **Load rubric index** — `read_skill_resource("references/rubric_index.json")`
+6. **Resolve scope** — run `resolve_session_scope_v2.py`; if it fails for ANY reason → **STOP**, report exact error, ask user to confirm scope from CSV result; only continue after user confirmation
+7. **Fetch transcript evidence** — 2–4 targeted topic-cluster queries; tag system of record; scope to community management
+8. **Anchor evidence to UIDs** — for each evidence chunk, identify which UID's question it answers; only use UIDs from `valid_uids`
+9. **Extract branch answers** — cite speaker + timestamp + system tag; leave Classification blank when transcript is silent
+10. **Pre-build verification** — print verification block for every batch (UID whitelist, row count gate, gap report); correct any mismatch from `rubric_rows[uid]` before building
+11. **Row count gate** — assert total rows across all batches == `len(valid_uids)`; if mismatch → STOP and report
+12. **Classify** — apply GR-1 through GR-7 first, then decision ladder; never write "HITL" in Classification column
+13. **Build xlsx in batches (20 rows max per `execute_code` call)** — process all batches; collect all row data in memory
+14. **Merge and deliver ONE file** — single final `execute_code` call writing ALL rows into `Assessment_{Branch}_Session{N}.xlsx`; deliver via `render_content` (displayType: `"download"`)
+15. **Report** — minimal chat output (< 5KB); counts use "Blank (HITL)" not "HITL"
 
 ---
 
 ## Hard Rules
 
-- Never call any script at startup or before the user provides session data
-- Never pass 50+ rows as a single `execute_code` payload — batch classification at 20 rows max, but always merge into ONE final file
-- **Always deliver exactly ONE xlsx file per session** — never deliver intermediate batch files separately
-- Never use `build_assessment_snapshot.py` or `build_assessment_snapshot_v2.py` for production
-- Never write "HITL" in the Classification column — blank + `[HITL: ...]` in notes
-- Never embed Proximity inside Assessor Notes — it goes in column 15
-- Never classify integration-covered items as FB without explicit SME confirmation (GR-1)
-- Never use "non-negotiable" in any output (GR-6)
-- Never derive Dimension, Discovery Question, TownSq Capability, or any other metadata field — copy verbatim from `rubric_rows[uid]`; if not retrieved, re-query before proceeding
-- Never allow a branch answer written for one UID to be used for a different UID — verify (uid, discovery_question) binding before every batch build
-- Row count + UID set integrity is mandatory — delivered xlsx UID set must equal the mapping CSV query result UID set
-- Chat output must stay < 5KB — all detailed data goes in xlsx files
-- Data product names must match the naming convention in the session processing guide exactly
+- **Never call any script at startup or before the user provides session data**
+- **Never pass 50+ rows as a single `execute_code` payload** — batch at 20 rows max, merge into ONE final file
+- **Always deliver exactly ONE xlsx file per session** — never deliver intermediate batch files
+- **Never use `build_assessment_snapshot.py` or `build_assessment_snapshot_v2.py`** for production
+- **Never write "HITL" in the Classification column** — blank + `[HITL: ...]` in notes
+- **Never embed Proximity inside Assessor Notes** — it goes in column 15
+- **Never classify integration-covered items as FB without explicit SME confirmation** (GR-1)
+- **Never use "non-negotiable" in any output** (GR-6)
+- **Never derive Dimension, Discovery Question, TownSq Capability, or any other metadata field** — copy verbatim from `rubric_rows[uid]`; if not retrieved, re-query before proceeding
+- **Never allow a branch answer written for one UID to be used for a different UID**
+- **Never write a UID not present in `valid_uids`** — discard any row whose UID was not returned by the CSV query
+- **Never fill UID sequence gaps with invented rows** — gaps mean those UIDs belong to other sessions
+- **If `resolve_session_scope_v2.py` fails for any reason → STOP** — do not proceed from memory; report the error; ask user to confirm scope from CSV
+- **Row count must equal `len(valid_uids)`** — assert before every file build; stop if mismatch
+- **Chat output must stay < 5KB** — all detailed data goes in xlsx files
 
 # Data Product
 
@@ -237,8 +286,9 @@ Vantaca Data Product - Common
 
 # Skills
 
-- sandbox-cli-toolkit
-- session-rubric-answerer
+- rubric-delivery-skill
+- session-mapping-extractor
+- branch-assessor-skills
 - rubric-answer-extractor-skill
-- excel-qa-processor
-- branch-assessor-skill
+- session-rubric-answerer
+- sandbox-cli-toolkit
