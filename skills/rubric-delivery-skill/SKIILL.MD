@@ -11,13 +11,13 @@ Build and deliver Assessment xlsx workbooks from a fully classified row payload.
 
 ## Input
 
-A merged JSON payload — `answered_rows` (from `session-rubric-answerer`) joined with classification output (from `branch-assessor-skills`) — keyed by UID. Every row must carry all 15 output fields before this skill runs.
+A merged JSON payload — `answered_rows` (from `session-rubric-answerer`) joined with classification output (from `branch-assessor-skills`) — keyed by UID. Every row must carry all 13 output fields before this skill runs.
 
 ## Workflow
 
 ### Step 1 — Receive and validate the merged payload
 
-Accept the merged rows. For each row, verify the merge was done by UID key (never by position):
+Accept the merged rows. Verify the merge was done by UID key (never by position):
 
 ```python
 assert row['uid'] == classified_row['uid'], f"UID mismatch: {row['uid']} vs {classified_row['uid']}"
@@ -35,13 +35,11 @@ Before every batch, confirm per-row:
 - `branch_answer` — present and non-empty (or `hitl: true` if Not Found)
 - `classification` — one of `"PC"`, `"AC"`, `"FB"`, `"NA"`, `""` — never `"HITL"`
 
-If any check fails: correct from source or set `classification: ""` + `hitl: true` with `[HITL: metadata validation failed — field missing or invalid]` in `assessor_notes`. Never build with invalid metadata.
+If any check fails: correct from source or set `classification: ""` + `hitl: true` with `[HITL: metadata validation failed — field missing or invalid]`. Never build with invalid metadata.
 
 ### Step 3 — Batch rows by capability group (≤ 20 rows per batch)
 
-Group rows by `capability` name. If a single capability group exceeds 20 rows, split by `dimension` alphabetically.
-
-Assign `run` numbers sequentially (1, 2, 3 …).
+Group rows by `capability` name. If a single capability group exceeds 20 rows, split by `dimension` alphabetically. Assign `run` numbers sequentially (1, 2, 3 …).
 
 ### Step 4 — Load xlsx builder
 
@@ -49,7 +47,7 @@ Assign `run` numbers sequentially (1, 2, 3 …).
 read_skill_resource(skillId, "references/xlsx_builder.py")
 ```
 
-Store the returned content string verbatim. **Do not rewrite or paraphrase it.** Embed it exactly as-is in every `execute_code` call.
+Store the returned content verbatim. **Do not rewrite or paraphrase it.**
 
 ### Step 5 — Build each batch via execute_code
 
@@ -70,12 +68,10 @@ with open("input.json") as f:
 ```
 
 After `execute_code` returns, check `outputFiles`:
-- If `outputFiles` is non-empty → use `outputFiles[0].blobKey` as `content` in `render_content`
-- If `outputFiles` is empty → **STOP**. Do not attempt a base64 fallback. Report the failure and retry.
+- Non-empty → use `outputFiles[0].blobKey` as `content` in `render_content`
+- Empty → **STOP**. Do not attempt a base64 fallback. Report and retry.
 
 ### Step 6 — Deliver each batch immediately
-
-Deliver via `render_content` immediately after each successful `execute_code` call. Do not queue batches.
 
 ```
 render_content(
@@ -89,65 +85,46 @@ render_content(
 )
 ```
 
-File naming: `Assessment_{Branch}_Session{N}_Run{M}.xlsx`
-Examples: `Assessment_CMA_Session6_Run1.xlsx`, `Assessment_CMA_Session6_Run2.xlsx`
-
 ### Step 7 — Report
-
-After all batches are delivered, output a minimal summary (< 5KB):
 
 ```markdown
 ## Delivery Summary
-- Branch: {branch}
-- Session: {N}
-- Total rows delivered: {count}
-- Batches: {M}
+- Branch: {branch} / Session: {N} / Total rows: {count} / Batches: {M}
 
 ## Classification Breakdown
 | Code | Count |
 |---|---|
-| AC | X |
-| PC | X |
-| FB | X |
-| NA | X |
-| HITL (blank) | X |
+| AC | X | PC | X | FB | X | NA | X | HITL (blank) | X |
 
 ## Files Delivered
 - Assessment_{Branch}_Session{N}_Run1.xlsx — {count} rows
-- Assessment_{Branch}_Session{N}_Run2.xlsx — {count} rows
 ```
 
-Do NOT output individual row data, answers, or classification details in chat.
+---
+
+## Output Column Schema (13 columns, fixed order)
+
+| # | Column | Field key |
+|---|---|---|
+| 1 | UID | `uid` |
+| 2 | QID | `qid` |
+| 3 | Session | `session` |
+| 4 | Planned Question ID | `planned_question_id` |
+| 5 | Capability | `capability` |
+| 6 | Dimension | `dimension` |
+| 7 | Priority | `priority` |
+| 8 | Discovery Question | `discovery_question` |
+| 9 | Branch Answer | `branch_answer` |
+| 10 | TownSq Capability | `townsq_capability` |
+| 11 | Classification | `classification` |
+| 12 | Assessor Notes | `assessor_notes` |
+| 13 | Proximity | `proximity` |
+
+**Never add columns beyond 13.**
 
 ---
 
-## Output Column Schema (15 columns, fixed order)
-
-The xlsx builder writes exactly these 15 columns. Do not add, remove, or reorder columns.
-
-| # | Column | Field key | Source |
-|---|---|---|---|
-| 1 | UID | `uid` | Read-only — CSV verbatim |
-| 2 | QID | `qid` | Read-only — CSV verbatim |
-| 3 | Session | `session` | Read-only — CSV verbatim |
-| 4 | Planned Question ID | `planned_question_id` | Read-only — CSV verbatim |
-| 5 | Domain | `domain` | Matched from rubric_index |
-| 6 | Cap # | `cap_num` | Matched from rubric_index |
-| 7 | Capability | `capability` | Read-only — CSV verbatim |
-| 8 | Dimension | `dimension` | Read-only — CSV verbatim |
-| 9 | Priority | `priority` | Read-only — CSV verbatim |
-| 10 | Discovery Question | `discovery_question` | Read-only — CSV verbatim |
-| 11 | Branch Answer | `branch_answer` | AI-written by session-rubric-answerer |
-| 12 | TownSq Capability | `townsq_capability` | Read-only — CSV verbatim |
-| 13 | Classification | `classification` | AI-written by branch-assessor-skills |
-| 14 | Assessor Notes | `assessor_notes` | AI-written by branch-assessor-skills |
-| 15 | Proximity | `proximity` | AI-written by branch-assessor-skills |
-
-**Never add columns beyond 15.** The builder's column list is fixed.
-
----
-
-## Row Dict Schema (passed in `rows` array)
+## Row Dict Schema
 
 ```json
 {
@@ -155,8 +132,6 @@ The xlsx builder writes exactly these 15 columns. Do not add, remove, or reorder
   "qid": "6.8.1",
   "session": 6,
   "planned_question_id": "S6-Q12",
-  "domain": "Financial Operations",
-  "cap_num": "6.8",
   "capability": "Supply Charges",
   "dimension": "Ancillary billing visibility",
   "priority": "P1",
@@ -171,19 +146,17 @@ The xlsx builder writes exactly these 15 columns. Do not add, remove, or reorder
 ```
 
 **`classification`**: `"PC"` / `"AC"` / `"FB"` / `"NA"` / `""`. **Never `"HITL"`.**
-**`proximity`**: `"Exact match"` / `"High (~75%)"` / `"Moderate (~50%)"` / `"Low (~25%)"` / `"No match"` / `""` (blank for HITL rows).
-**`hitl`**: `true` for blank-classification rows. Builder applies amber fill; cell value stays blank.
+**`hitl`**: `true` for blank-classification rows — builder applies amber fill, cell stays blank.
 
 ---
 
 ## Hard Rules
 
-- **Never call run_skill_script for xlsx delivery** — outputFiles will always be empty from the skill sandbox.
-- **Always use execute_code + outputFiles[0].blobKey** for xlsx delivery.
-- **Always read references/xlsx_builder.py before building** — embed verbatim, do not rewrite.
-- **Never add columns to output** — the 15-column schema is fixed.
+- **Always use execute_code + outputFiles[0].blobKey** — never run_skill_script for xlsx delivery.
+- **Always read references/xlsx_builder.py before building** — embed verbatim, never rewrite.
+- **Never add columns** — 13-column schema is fixed.
 - **Merge by UID key only** — never by row index or position.
 - **Deliver immediately after each batch** — do not queue.
-- **If outputFiles is empty after execute_code** — STOP. Report and retry. Never fall back to base64 from stdout.
+- **If outputFiles is empty** — STOP. Report and retry.
 - **classification must be "PC", "AC", "FB", "NA", or ""** — never "HITL".
-- **Chat output must stay < 5KB** — all row data goes in xlsx files.
+- **Chat output must stay < 5KB.**

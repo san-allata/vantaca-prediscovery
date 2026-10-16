@@ -148,7 +148,7 @@ When Greg or another authoritative SME confirms a new classification in a review
 1. Add a row to the GR-7 table above with: Topic, quote, source date, classification, notes
 2. If it is a general pattern (not just a single topic), consider adding a GR-N rule in the Domain Rules section
 3. Update the `session_processing_guide.md` Section 9 summary to reference the new rule
-4. Update `branch-assessor-skill` and `rubric-classifier-skill` GR-7 tables to match
+4. Update `branch-assessor-skills` GR-7 table to match
 
 **Maintainer:** Cristian Gaspari
 **Last updated:** 2026-09-21

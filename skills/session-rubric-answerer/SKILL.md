@@ -9,24 +9,22 @@ You extract branch answers from discovery session transcripts against the Associ
 
 **This skill does NOT classify rows.** Classification (PC/AC/FB/NA), assessor notes, and proximity are written by `branch-assessor-skills`. Do not write those fields here.
 
-**Before doing anything, read `references/session_processing_guide.md`.** It is the canonical operational guide and contains the complete workflow, batching strategy, transcript fetch strategy, and all verified patterns from live runs.
+**Before doing anything, read `references/session_processing_guide.md`.** It is the canonical operational guide. It contains the complete workflow, batching strategy, transcript fetch strategy, and all verified patterns from live runs.
 
-**Also load `references/greg_approved_classifications.md` at the start of every run** — GR rules provide context for scoping answers correctly (e.g. GR-2: community management only, GR-3: system-of-record tagging).
+**Also load `references/greg_approved_classifications.md` at the start of every run.** GR rules provide context for scoping answers correctly (GR-2: community management only, GR-3: system-of-record tagging).
 
 ---
 
-## Reference Files & Resources
+## Reference Files
 
 - `references/session_processing_guide.md` — **Read this first.** End-to-end workflow, transcript fetch approach, verified SQL patterns, known failure modes and fixes.
-- `references/greg_approved_classifications.md` — **Load at Step 2b.** GR-1–7 rules. Used here for answer scoping context (GR-2, GR-3) only — NOT for classification decisions.
-- `references/rubric_index.json` — Lightweight rubric index. Use for domain/cap_num resolution. Pass as `rubric_index` in inputData when calling scope resolution scripts.
-- `scripts/resolve_session_scope_v2.py` — Resolves session mapping rows to rubric rows. Use via `run_skill_script` only.
+- `references/greg_approved_classifications.md` — **Load at Step 2b.** GR-1–7 rules. Use for answer scoping context (GR-2, GR-3) only. Do not use for classification decisions.
 
 ---
 
 ## answered_rows Output Schema (per row)
 
-These are ALL the fields this skill emits. Classification fields are left empty — they are written by `branch-assessor-skills`.
+These are all the fields this skill emits. Leave classification fields empty. `branch-assessor-skills` writes those fields.
 
 | Field | Source | Written by |
 |---|---|---|
@@ -34,8 +32,6 @@ These are ALL the fields this skill emits. Classification fields are left empty 
 | `qid` | CSV verbatim | session-mapping-extractor |
 | `session` | CSV verbatim | session-mapping-extractor |
 | `planned_question_id` | CSV verbatim | session-mapping-extractor |
-| `domain` | rubric_index match | this skill |
-| `cap_num` | rubric_index match | this skill |
 | `capability` | CSV verbatim | session-mapping-extractor |
 | `dimension` | CSV verbatim | session-mapping-extractor |
 | `priority` | CSV verbatim | session-mapping-extractor |
@@ -60,11 +56,11 @@ These are ALL the fields this skill emits. Classification fields are left empty 
 
 ### answer_has_gaps
 
-Set `true` when `branch_answer` contains a `GAPS:` line — meaning some sub-parts of `exact_master_rubric_question` were not addressed in the transcript.
+Set `true` when `branch_answer` contains a `GAPS:` line. This means the transcript did not address some sub-parts of `exact_master_rubric_question`.
 
 ### answer_not_found
 
-Set `true` when `branch_answer` starts with `"Not Found"` — meaning the transcript was silent on this question entirely.
+Set `true` when `branch_answer` starts with `"Not Found"`. This means the transcript was silent on this question.
 
 ---
 
@@ -72,7 +68,7 @@ Set `true` when `branch_answer` starts with `"Not Found"` — meaning the transc
 
 ### All metadata fields are Read-Only — Never Derived
 
-Fields `uid`, `qid`, `session`, `planned_question_id`, `capability`, `dimension`, `priority`, `discovery_question`, and `townsq_capability` are sourced **exclusively** from the mapping CSV query result. Never infer, paraphrase, summarise, truncate, or fill from memory or transcript evidence.
+Copy fields `uid`, `qid`, `session`, `planned_question_id`, `capability`, `dimension`, `priority`, `discovery_question`, and `townsq_capability` verbatim from the mapping CSV. Do not infer, paraphrase, summarise, truncate, or fill them from memory or transcript evidence.
 
 **If a CSV field is empty or null → output field is blank. Never substitute.**
 **If a CSV field was not retrieved → STOP. Re-query before proceeding.**
@@ -83,38 +79,38 @@ Fields `uid`, `qid`, `session`, `planned_question_id`, `capability`, `dimension`
 rubric_rows = {row['uid']: row for row in extracted_rows}
 ```
 
-All subsequent field population reads from `rubric_rows[uid]` — never from memory.
+Read all subsequent field values from `rubric_rows[uid]`. Do not read them from memory.
 
 ### Every Answer Is Bound to Its UID
 
-`branch_answer` must respond to the `exact_master_rubric_question` for **that specific UID**. Before writing any answer, re-read `rubric_rows[uid]['exact_master_rubric_question']` and confirm the transcript evidence addresses that question — not a neighbouring row's question.
+`branch_answer` must respond to the `exact_master_rubric_question` for that specific UID. Before writing any answer, re-read `rubric_rows[uid]['exact_master_rubric_question']`. Confirm the transcript evidence addresses that question. Do not use evidence that addresses a different UID's question.
 
 ### TownSq Capability Is Read-Only
 
-`townsq_capability` is copied verbatim from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`. Never rewrite, paraphrase, or supplement from data product search results.
+Copy `townsq_capability` verbatim from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`. Do not rewrite, paraphrase, or supplement it from data product search results.
 
 ---
 
-## Transcript Evidence & Answer Extraction Rules
+## Transcript Evidence and Answer Extraction Rules
 
 ### Column C (planned_question) Is the Transcript Search Key
 
 Use `planned_question` (col C) as the primary search key to locate the relevant transcript passage. The branch's spoken response to that question is the raw evidence for `branch_answer`.
 
-Multiple rubric rows (UIDs) may share the same `planned_question` — they were answered in the same transcript segment. Extract the sub-answer relevant to each row's specific `exact_master_rubric_question` (col I).
+Multiple rubric rows (UIDs) may share the same `planned_question`. They were answered in the same transcript segment. Extract the sub-answer relevant to each row's specific `exact_master_rubric_question` (col I).
 
 ### Columns F and G Scope the Answer
 
-- **Column F (`capability`)** — narrows evidence to the right business domain.
-- **Column G (`dimension`)** — narrows evidence to the correct facet within that capability. A broad transcript answer must be scoped to this specific dimension before writing.
+- **Column F (`capability`)** — narrows evidence to the correct business domain.
+- **Column G (`dimension`)** — narrows evidence to the correct facet within that capability. Scope a broad transcript answer to this specific dimension before writing.
 
 ### Column H (priority) Governs Processing Order
 
-Within each `planned_question` group, process rows **P0 first, then P1, P2, P3**. When evidence is limited, allocate it to higher-priority rows first. Lower-priority rows get `Not Found + GAPS` rather than a diluted answer.
+Within each `planned_question` group, process rows P0 first, then P1, P2, P3. When evidence is limited, allocate it to higher-priority rows first. Give lower-priority rows `Not Found + GAPS` rather than a diluted answer.
 
 ### Column I (exact_master_rubric_question) Is What Gets Answered
 
-The `branch_answer` must respond to `exact_master_rubric_question` (col I), not to `planned_question` (col C). Col C is the search key; col I is the question to answer.
+`branch_answer` must respond to `exact_master_rubric_question` (col I), not to `planned_question` (col C). Col C is the search key. Col I is the question to answer.
 
 ### Answer Format
 
@@ -127,7 +123,7 @@ Source: {file} [{timestamp}, {speaker}] [system: {system-of-record}]
 For partial answers, append:
 ```
 
-GAPS: {what sub-parts of exact_master_rubric_question were not addressed}
+GAPS: {sub-parts of exact_master_rubric_question not addressed in the transcript}
 ```
 
 For not found:
@@ -143,14 +139,14 @@ GAPS: {dimension} not discussed in this session
 
 ## Workflow
 
-**Read `references/session_processing_guide.md` for the full workflow.** Summary below is for orientation only.
+**Read `references/session_processing_guide.md` for the full workflow.** The summary below is for orientation only.
 
 ### Step 1 — Wait for explicit user input
 Do not proceed until the user provides ALL of:
 - A session number (or range), AND
 - Confirmation that the transcript and mapping CSV are in the attached data product(s)
 
-Never call any script at startup or on context load.
+Do not call any script at startup or on context load.
 
 ### Step 2 — Extract session rows via session-mapping-extractor
 Call `session-mapping-extractor`'s `scripts/extract_session_rows.py` via `run_skill_script` to get all rows for the session (columns B–I), sorted by `planned_question_id` then `priority`.
@@ -163,44 +159,36 @@ rubric_rows = {row['uid']: row for row in extracted_rows}
 ### Step 2b — Load Greg-Approved Classifications (for scoping context only)
 `read_skill_resource("references/greg_approved_classifications.md")`
 
-Use GR-2 (community management context) and GR-3 (system-of-record tagging) to scope answers. Do NOT apply GR rules for classification — that is branch-assessor-skills' job.
+Use GR-2 (community management context) and GR-3 (system-of-record tagging) to scope answers. Do not apply GR rules for classification. That is branch-assessor-skills' job.
 
-### Step 3 — Load rubric index
-`read_skill_resource("references/rubric_index.json")`
+### Step 3 — Fetch transcript evidence (batched by topic)
+Make 2–4 targeted `get_information_from_dataProduct` calls. Cover a distinct topic cluster in each call. Use `planned_question` (col C) values as search keys.
 
-Use to resolve `domain` and `cap_num` per UID.
-
-### Step 4 — Resolve session scope
-Call `resolve_session_scope_v2.py` via `run_skill_script`. Confirm 100% resolved before proceeding.
-
-### Step 5 — Fetch transcript evidence (batched by topic)
-Make 2–4 targeted `get_information_from_dataProduct` calls, each covering a distinct topic cluster. Use `planned_question` (col C) values as search keys.
-
-### Step 6 — Extract branch answers (priority order, per planned_question group)
+### Step 4 — Extract branch answers (priority order, per planned_question group)
 For each `planned_question` group, process rows P0 → P1 → P2 → P3:
-1. Use `planned_question` (col C) to locate the transcript segment
-2. Scope evidence using `capability` (col F) and `dimension` (col G)
-3. Write `branch_answer` responding to `exact_master_rubric_question` (col I)
-4. Cite speaker + timestamp + system tag in every Source line
-5. Set `answer_confidence`, `answer_has_gaps`, `answer_not_found` accurately
+1. Use `planned_question` (col C) to locate the transcript segment.
+2. Scope evidence using `capability` (col F) and `dimension` (col G).
+3. Write `branch_answer` to respond to `exact_master_rubric_question` (col I).
+4. Cite speaker, timestamp, and system tag in every Source line.
+5. Set `answer_confidence`, `answer_has_gaps`, and `answer_not_found` accurately.
 
-### Step 7 — Emit answered_rows JSON
-Output the complete `answered_rows` array. Leave `classification`, `assessor_notes`, `proximity`, and `hitl` as empty strings / `false`. Hand off to `branch-assessor-skills` for classification.
+### Step 5 — Emit answered_rows JSON
+Output the complete `answered_rows` array. Leave `classification`, `assessor_notes`, `proximity`, and `hitl` as empty strings or `false`. Hand off to `branch-assessor-skills` for classification.
 
-### Step 8 — Report
-Minimal chat output: row count, Not Found count, partial (GAPS) count, Low confidence count. Do NOT output individual answers in chat.
+### Step 6 — Report
+Output a minimal chat summary: row count, Not Found count, partial (GAPS) count, Low confidence count. Do not output individual answers in chat.
 
 ---
 
 ## Hard Rules
 
-- **Never classify rows.** Do not write `classification`, `assessor_notes`, or `proximity`. Leave them empty.
-- **Never call xlsx delivery tools.** Delivery is handled by `rubric-delivery-skill`.
-- **Never call any script at startup** or before the user provides session data.
-- **Never derive any metadata field** — copy verbatim from `rubric_rows[uid]`; if not retrieved, re-query before proceeding.
-- **Never allow a branch answer written for one UID to be used for a different UID.**
-- **Use planned_question (col C) as transcript search key** — never use `exact_master_rubric_question` (col I) as a search query.
-- **Use capability (col F) and dimension (col G) to scope every answer.**
-- **Process rows in priority order (P0 first)** within each planned_question group.
-- **Chat output must stay < 5KB.**
-- **answer_confidence, answer_has_gaps, answer_not_found must be set accurately** — the classifier depends on them as pre-signals.
+- Do not classify rows. Do not write `classification`, `assessor_notes`, or `proximity`. Leave them empty.
+- Do not call xlsx delivery tools. `rubric-delivery-skill` handles delivery.
+- Do not call any script at startup or before the user provides session data.
+- Do not derive any metadata field. Copy it verbatim from `rubric_rows[uid]`. If a field was not retrieved, re-query before proceeding.
+- Do not use a branch answer written for one UID for a different UID.
+- Use `planned_question` (col C) as the transcript search key. Do not use `exact_master_rubric_question` (col I) as a search query.
+- Use `capability` (col F) and `dimension` (col G) to scope every answer.
+- Process rows in priority order (P0 first) within each planned_question group.
+- Keep chat output under 5KB.
+- Set `answer_confidence`, `answer_has_gaps`, and `answer_not_found` accurately. The classifier uses them as pre-signals.

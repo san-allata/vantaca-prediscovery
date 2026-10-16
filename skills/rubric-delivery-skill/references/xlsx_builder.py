@@ -1,4 +1,4 @@
-"""xlsx_builder.py — Assessment xlsx builder for Session Rubric Answerer.
+"""xlsx_builder.py — Assessment xlsx builder.
 
 Usage (via execute_code):
   - Read this file via read_skill_resource("references/xlsx_builder.py")
@@ -18,8 +18,6 @@ Input JSON schema:
         "qid": "6.8.1",
         "session": 6,
         "planned_question_id": "S6-Q12",
-        "domain": "Financial Operations",
-        "cap_num": "6.8",
         "capability": "Supply Charges",
         "dimension": "Ancillary billing visibility",
         "priority": "P1",
@@ -67,15 +65,13 @@ WRAP         = Alignment(wrap_text=True, vertical="top")
 HEADER_ALIGN = Alignment(wrap_text=True, vertical="center", horizontal="center")
 
 
-# ── Column definitions ──────────────────────────────────────────────────────────────────────────────
+# ── Column definitions (13 columns) ──────────────────────────────────────────────────────────────────
 # (header, field_key, width)
 COLUMNS = [
     ("UID",                   "uid",                  10),
     ("QID",                   "qid",                   8),
     ("Session",               "session",               8),
     ("Planned Question ID",   "planned_question_id",  12),
-    ("Domain",                "domain",               18),
-    ("Cap #",                 "cap_num",               7),
     ("Capability",            "capability",           22),
     ("Dimension",             "dimension",            24),
     ("Priority",              "priority",              8),
@@ -119,7 +115,6 @@ def build(data: dict) -> str:
     # ── Data rows ─────────────────────────────────────────────────────────────────────────────
     for row_idx, row in enumerate(rows, 2):
         classification = str(row.get("classification", "")).strip().upper()
-        # Only valid codes pass through; everything else → HITL amber
         if classification not in ("PC", "AC", "FB", "NA"):
             classification = ""
 
@@ -127,8 +122,6 @@ def build(data: dict) -> str:
 
         for col_idx, (_, field_key, _) in enumerate(COLUMNS, 1):
             raw_value = row.get(field_key, "")
-
-            # Classification column: write normalised code (blank for HITL)
             if field_key == "classification":
                 value = classification
             else:
@@ -155,7 +148,7 @@ def build(data: dict) -> str:
     return filename
 
 
-# ── Entry point (called when run as __main__ inside execute_code) ───────────────────────────────────────────────────
+# ── Entry point ───────────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     with open("input.json", "r", encoding="utf-8") as f:
         data = json.load(f)
