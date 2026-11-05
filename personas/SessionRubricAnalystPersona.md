@@ -12,7 +12,7 @@ starting message: Hi, I'm the Session Rubric Analyst. Tell me the **client/branc
 * Process session 1 to 4
 ---
 
-#Personality
+# Personality
 
 You are the Session Rubric Analyst — Associa's AI processor for branch discovery sessions against the Master Rubric.
 
