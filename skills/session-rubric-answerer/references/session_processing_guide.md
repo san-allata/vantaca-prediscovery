@@ -10,13 +10,13 @@
 > with the builder script — STOP and switch to `execute_code`.
 
 **Canonical operational guide for session-rubric-answerer**
-Last updated: 2026-10-16 — removed domain/cap_num fields and rubric_index dependency; removed resolve_session_scope_v2.py step.
+Last updated: 2026-11-04 — added evidence source filter (Step 3), screen-walk split rule (Step 5), branch-answer TownSq contamination guard.
 
 ---
 
 ## 1. Overview
 
-This guide documents the proven end-to-end pattern for processing any discovery session transcript against the Master Rubric. It was written after a live Session 6 run that encountered and resolved three distinct failure modes, then updated with classification corrections from four Greg Hamm SME review sessions. Follow it exactly before improvising.
+This guide documents the proven end-to-end pattern for processing any discovery session transcript against the Master Rubric. It was written after a live Session 6 run that encountered and resolved three distinct failure modes, then updated with classification corrections from four Greg Hamm SME review sessions, then updated again (2026-11-04) with evidence source filter and screen-walk split rules after a Session 3 audit identified TownSq-description contamination in branch answers. Follow it exactly before improvising.
 
 **Output:** One xlsx workbook per capability-group batch (13 columns), named `Assessment_{Branch}_Session{N}_Run{M}.xlsx`. Deliver every workbook as a **clickable download link** in chat via `render_content`.
 
@@ -91,7 +91,7 @@ rubric_rows = {row['uid']: row for row in extracted_rows}
 
 ### Rule 1: Master Rubric Fields Are Read-Only — Never Derived
 
-Copy the following fields verbatim, character-for-character, from the mapping CSV stored in `rubric_rows[uid]`. Do not infer, paraphrase, summarise, truncate, correct, or fill them from context, memory, or transcript evidence:
+Copy the following fields verbatim, character-for-character, from the mapping CSV stored in `rubric_rows[uid]`:
 
 | Output row field | Source — `rubric_rows[uid]` key |
 |---|---|
@@ -110,7 +110,7 @@ Copy the following fields verbatim, character-for-character, from the mapping CS
 
 ### Rule 2: Answer–UID Binding
 
-Every `branch_answer` is bound to one specific `(uid, exact_master_rubric_question)` pair. It must respond to the specific question for that UID — not to a neighbouring row's question.
+Every `branch_answer` is bound to one specific `(uid, exact_master_rubric_question)` pair.
 
 Before writing any branch answer:
 1. Re-read `exact_master_rubric_question` for that UID from `rubric_rows[uid]`.
@@ -119,28 +119,19 @@ Before writing any branch answer:
 
 ### Rule 3: TownSq Capability Is Also Read-Only
 
-Source `townsq_capability` exclusively from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`. Do not rewrite, paraphrase, or supplement it from data product search results. If the retrieved value appears mis-mapped or incomplete, note this in Assessor Notes. Do not silently replace it.
+Source `townsq_capability` exclusively from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`. Do not rewrite, paraphrase, or supplement it from data product search results.
 
 ### Rule 4: Validation Gate Before Every Batch Build
 
 Before passing rows to `execute_code`, confirm each row in the batch:
 
 - [ ] `row['uid']` == `rubric_rows[uid]['uid']` — exact match
-- [ ] `row['dimension']` == `rubric_rows[uid]['dimension']` — exact string, not a synonym or summary
+- [ ] `row['dimension']` == `rubric_rows[uid]['dimension']` — exact string
 - [ ] `row['discovery_question']` == `rubric_rows[uid]['exact_master_rubric_question']` — exact string
 - [ ] `row['townsq_capability']` == `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']` — exact string
 - [ ] `row['branch_answer']` Source citation references evidence relevant to `row['discovery_question']`
 
-**If any check fails:** correct the field from `rubric_rows[uid]`, or set `classification: ""` and `hitl: true` with `[HITL: metadata mismatch — field X does not match CSV for this UID]` in notes.
-
-Print a one-line pre-build report before each `execute_code` call:
-```
-Pre-build: [N] rows — UIDs [Q0089, Q0090, ...] — all metadata sourced from CSV ✓
-```
-Or, if mismatches were found and corrected:
-```
-Pre-build: [N] rows — corrected: [list of UIDs and fields fixed] — proceeding
-```
+Print a one-line pre-build report before each `execute_code` call.
 
 ---
 
@@ -154,31 +145,37 @@ Hold in context for the full run.
 
 ### Step 3 — Fetch Transcript Evidence (Batched by Topic)
 
-**Do NOT load the full VTT in one call.** Use 3–4 targeted `get_information_from_dataProduct` calls per topic cluster.
+**Do NOT load the full transcript in one call.** Use 3–4 targeted `get_information_from_dataProduct` calls per topic cluster.
 
-Example split for a Financial Operations session:
-1. "management fee configuration, contract storage, fee types, rate changes, dual-sided accounting"
-2. "board approval, self-billing controls, separation of duties, revenue recognition"
-3. "supply charges, reimbursables, utility invoices, amenity rentals, security deposits"
-4. "audit, CPA, tax filings, engagement letters, IRS, extensions"
+**Context scoping (GR-2):** Interpret all evidence through the lens of HOA/community management.
 
-**Context scoping (GR-2):** Interpret all evidence through the lens of **HOA/community management**.
+**System-of-record tagging (GR-3):** Tag each evidence piece: `[StrongRoom]`, `[VendorSmart]`, `[native Vantaca]`, `[Stripe]`, `[other]`.
 
-**System-of-record tagging (GR-3):** Tag each evidence piece: `[StrongRoom]`, `[VendorSmart]`, `[native Vantaca]`, `[Stripe]`, `[other]`. This tag must appear in the Source line.
+#### ⚠️ Evidence Source Filter (MANDATORY after every data product query)
+
+After each `get_information_from_dataProduct` call, inspect every returned chunk's source filename and discard non-transcript chunks before using any evidence.
+
+**Valid transcript file extensions: `.docx`, `.vtt`, `.md`**
+
+**Discard a chunk immediately if its source file:**
+- Has an `.xlsx` or `.csv` extension
+- Contains any of these patterns in its filename: `MasterRubric`, `plain`, `mapping`, `Associa`, `Rubric`, `Crosswalk`, `Facilitator`, `Guide`
+- Is written in third-person product-documentation style (opens with "✅", "⚠️", or a TownSq product name as the subject of a capability description)
+
+**Only use chunks whose source filename contains the branch/client name and `Session`** — e.g., `CAMS - Vantaca Prediscovery Phase 2 - Session 3.docx`, `CMA_Session6.vtt`, `Q0914-Q0943.md`.
+
+Log the filenames of all retained and discarded chunks before proceeding to Step 3b.
 
 ---
 
 ### Step 3b — Anchor Evidence to UIDs ⚠️ (MANDATORY before extracting answers)
 
-After fetching transcript evidence, before writing any branch answer:
+After fetching and filtering transcript evidence, before writing any branch answer:
 
 1. List every UID and its `exact_master_rubric_question` from `rubric_rows`.
-2. For each retrieved evidence chunk, identify which specific UID(s) it is relevant to — based on that UID's question text, not on a broad topic label.
+2. For each retained evidence chunk, identify which specific UID(s) it is relevant to.
 3. Write each branch answer only from evidence relevant to that UID's own question.
 4. Do NOT reuse one evidence chunk as the answer for a different UID's question.
-
-**Example of the problem this prevents:**
-Evidence about "how invoices are received" is relevant to Q0089 ("Walk through your AP process step by step") and Q0106 ("Are paper invoices still received...") — but these are different questions that require different scope and emphasis. Do not reuse evidence scoped to Q0089 wholesale as Q0106's answer.
 
 ---
 
@@ -186,31 +183,54 @@ Evidence about "how invoices are received" is relevant to Q0089 ("Walk through y
 
 **Rule: ≤ 20 rows per batch.**
 
-Group rows by capability name. Typical splits:
-
-| Batch | Capabilities | Approx rows |
-|---|---|---|
-| Run 1 | Management Fee Administration (6.15) | 35–51 |
-| Run 2 | Supply Charges (6.8) + Reimbursables (6.9) + Systems (6.12.9) | 25–35 |
-| Run 3 | Amenity Rentals (6.12) + Audit/Tax/CPA (6.10) | 20–30 |
-
-If a single capability group > 20 rows, split alphabetically by dimension.
+Group rows by capability name. If a single capability group > 20 rows, split alphabetically by dimension.
 
 ### Step 5 — Extract Branch Answers
 
 For each row:
 1. Read `exact_master_rubric_question` for this UID from `rubric_rows[uid]`. Answer that question only.
-2. Check `references/greg_approved_classifications.md`. If the topic matches a Greg ruling, use it as authoritative context for scoping.
+2. Check `references/greg_approved_classifications.md` for topic rulings.
 3. Use `planned_question` (col C) as the transcript search key to locate evidence.
 4. Scope evidence to `capability` (col F) and `dimension` (col G).
-5. Process rows in priority order within each planned_question group: P0 → P1 → P2 → P3.
+5. Process rows in priority order: P0 → P1 → P2 → P3.
 6. Tag system of record in the Source line (GR-3).
-7. Write `branch_answer`: `"{answer}\n\nSource: {file} [{timestamp}, {speaker}] [system: {system-of-record}]"`
+7. Write `branch_answer` in first-person plural.
 8. If partial: append `"\n\nGAPS: {what is missing}"`
-9. If not found: `"Not Found — {brief reason}\n\nSource: {file} (full transcript reviewed; topic not addressed)\n\nGAPS: {topic} not discussed in this session"`
-10. Set `answer_confidence` (High/Medium/Low), `answer_has_gaps` (bool), `answer_not_found` (bool).
+9. If not found: `"Not Found — {brief reason}\n\nSource: {file} (full transcript reviewed; topic not addressed)\n\nGAPS: {topic} not discussed"`
+10. Set `answer_confidence`, `answer_has_gaps`, `answer_not_found`.
 
-**HITL threshold:** When the transcript is silent AND the capability references a third-party integration (not native Vantaca), set `"classification": ""` and `"hitl": true`. Write `[HITL: integration applicability unconfirmed — transcript silent]` in `assessor_notes`.
+#### ⚠️ Screen-Walk Split Rule (MANDATORY for live-demonstration sessions)
+
+Many sessions involve branch staff demonstrating TownSq on screen. A single utterance simultaneously describes what TownSq does (→ `townsq_capability`) and what the branch does (→ `branch_answer`). You must split them.
+
+**The test for every sentence before writing it into `branch_answer`:**
+> *Is TownSq / the platform the grammatical subject of this sentence?*
+> - **Yes** → Do NOT put it in `branch_answer`. Rewrite with the staff member as subject, or write Not Found.
+> - **No** → it is a branch action. It belongs in `branch_answer`.
+
+**Correct split examples:**
+
+| Speaker says | ✅ Write in branch_answer | ❌ Never write in branch_answer |
+|---|---|---|
+| *"Within TownSq Business, the delivery status shows here — delivered, opened, or failed"* | *"After we send, we check the delivery status in the E-blast tab to see who got it and who didn't."* | *"TownSq Business shows delivery status: delivered/opened/failed."* |
+| *"You can see in the activity notes tab — it'll show what's occurred"* | *"When a homeowner calls back, we pull up the activity notes tab to see the full history."* | *"The activity notes tab shows what occurred on the property."* |
+| *"TownSq Community requests show if opened, in-progress, or untouched"* | *"We look at open requests to see if the homeowner has opened them."* | *"TownSq Community shows request status: opened/in-progress/untouched."* |
+| *"There's no validation controls for email or phone in TownSq Business"* | *"We don't have any validation on email or phone — we repeat what the owner tells us twice to confirm."* | *"TownSq Business has no validation controls for email or phone."* |
+
+**If the only available evidence is a TownSq feature description with no accompanying staff action:**
+→ Write `"Not Found — transcript addresses this only via system demonstration; branch workflow not separately confirmed."`
+→ Do NOT convert a TownSq feature description into a branch answer.
+
+#### ⚠️ Branch Answer Must Not Describe TownSq
+
+`branch_answer` answers *"What does the branch do today?"* — always in first-person plural ("We…").
+
+It must **never** open with or primarily contain:
+- A statement about what TownSq/Vantaca/C3 supports or does
+- A navigation instruction ("Click on X to see Y")
+- A feature inventory ("TownSq Business supports A, B, and C")
+
+These belong in `townsq_capability` (col 10), which is read-only from the CSV.
 
 ### Step 6 — Emit answered_rows JSON
 
@@ -220,111 +240,29 @@ Output the complete `answered_rows` array. Leave `classification`, `assessor_not
 
 ## ⚠️ Classification Field Contract (MANDATORY)
 
-The `classification` field in every row JSON must be one of:
+`"HITL"` is NOT a valid value for the `classification` field.
 
-| Value | Meaning |
-|---|---|
-| `"PC"` | Process Change |
-| `"AC"` | Adoption / Config |
-| `"FB"` | Feature Backlog |
-| `"NA"` | Not Applicable |
-| `""` | Human review needed (HITL) |
-
-**`"HITL"` is NOT a valid value for the `classification` field.**
-
-For rows that require human review:
-- Set `"classification": ""` (empty string)
-- Set `"hitl": true`
-- Write `[HITL: <reason>]` in `assessor_notes`
-- Leave `"proximity": ""`
-
-The build script applies amber fill to the Classification cell automatically for HITL rows. **The cell value will be blank — no text is written into it.**
+For HITL rows: `"classification": ""` + `"hitl": true` + `[HITL: <reason>]` in `assessor_notes`.
 
 ---
 
 ## 4. Output Column Schema (13 columns, fixed order)
 
-| # | Column | Field key | Source | Valid values |
-|---|---|---|---|---|
-| 1 | UID | `uid` | **Copied verbatim from CSV** | — |
-| 2 | QID | `qid` | **Copied verbatim from CSV** | — |
-| 3 | Session | `session` | **Copied verbatim from CSV** | — |
-| 4 | Planned Question ID | `planned_question_id` | **Copied verbatim from CSV** | — |
-| 5 | Capability | `capability` | **Copied verbatim from CSV** | — |
-| 6 | Dimension | `dimension` | **Copied verbatim from CSV** | — |
-| 7 | Priority | `priority` | **Copied verbatim from CSV** | — |
-| 8 | Discovery Question | `discovery_question` | **Copied verbatim from CSV** (`exact_master_rubric_question`) | — |
-| 9 | Branch Answer | `branch_answer` | **AI-written** — grounded in transcript | — |
-| 10 | TownSq Capability | `townsq_capability` | **Copied verbatim from CSV** (`townsq_capability_what_townsq_supports_today`) | — |
-| 11 | Classification | `classification` | **AI-written by branch-assessor-skills** | `PC`, `AC`, `FB`, `NA`, or blank. Never `HITL`. Amber fill = HITL. |
-| 12 | Assessor Notes | `assessor_notes` | **AI-written by branch-assessor-skills** | `[HITL: ...]`, `[RECOMMENDATION: ...]`, `[GR-N: ...]` as applicable. |
-| 13 | Proximity | `proximity` | **AI-written by branch-assessor-skills** | `Exact match`, `High (~75%)`, `Moderate (~50%)`, `Low (~25%)`, `No match`, or blank. |
-
-#### Classification color map (column 11)
-
-| Code | Fill | Font |
-|---|---|---|
-| AC | #E2EFDA (green) | Bold |
-| FB | #FCE4D6 (orange) | Bold |
-| PC | #FFF2CC (yellow) | Bold |
-| NA | #EDEDED (grey) | Bold |
-| blank/HITL | #FFEB9C (amber) | — cell is blank (no text); amber fill is the only indicator |
-
-#### Proximity color map (column 13)
-
-| Value | Fill |
-|---|---|
-| Exact match | #E2EFDA (green) |
-| High (~75%) | #A9D18E (light green) |
-| Moderate (~50%) | #FFF2CC (yellow) |
-| Low (~25%) | #F4B942 (orange) |
-| No match | #FCE4D6 (red-orange) |
-| blank | #FFEB9C (amber) |
-
-#### Other formatting constants
-
-- Header fill: #1F4E79 (dark blue), white bold font, size 10
-- Freeze panes: A2 | Wrap text: all cells | Vertical align: top
-- Row height: 60pt (data), 30pt (header)
-- Sheet name: `Assessment`
-
-#### Output file naming
-
-```
-Assessment_{Branch}_Session{N}_Run{M}.xlsx
-```
-
----
-
-## 5. Row Data Structure
-
-```json
-{
-  "uid": "Q0468",
-  "qid": "6.15.1",
-  "session": 6,
-  "planned_question_id": "S6-Q3",
-  "capability": "Management Fee Administration",
-  "dimension": "Fee schedule configuration per association",
-  "priority": "P0",
-  "discovery_question": "How is the monthly management fee configured...",
-  "branch_answer": "All billing is handled in Vantaca...\n\nSource: CMA_Session6.vtt [00:05:01, Kim Dunbar] [system: native Vantaca]",
-  "townsq_capability": "After config — Management fee billing contracts configured in TownSq...",
-  "answer_confidence": "High",
-  "answer_has_gaps": false,
-  "answer_not_found": false,
-  "classification": "",
-  "assessor_notes": "",
-  "proximity": "",
-  "hitl": false
-}
-```
-
-**`classification`**: `"PC"` / `"AC"` / `"FB"` / `"NA"` / `""`. **Never `"HITL"`.**
-**`proximity`**: `"Exact match"` / `"High (~75%)"` / `"Moderate (~50%)"` / `"Low (~25%)"` / `"No match"` / `""` (blank for HITL).
-**`hitl`**: `true` for blank-classification rows. Script applies amber fill; cell value stays blank.
-
-**Populate all fields in columns 1–10 exclusively from `rubric_rows[uid]`. Do not use memory or transcript evidence.**
+| # | Column | Field key | Source |
+|---|---|---|---|
+| 1 | UID | `uid` | Copied verbatim from CSV |
+| 2 | QID | `qid` | Copied verbatim from CSV |
+| 3 | Session | `session` | Copied verbatim from CSV |
+| 4 | Planned Question ID | `planned_question_id` | Copied verbatim from CSV |
+| 5 | Capability | `capability` | Copied verbatim from CSV |
+| 6 | Dimension | `dimension` | Copied verbatim from CSV |
+| 7 | Priority | `priority` | Copied verbatim from CSV |
+| 8 | Discovery Question | `discovery_question` | Copied verbatim from CSV |
+| 9 | Branch Answer | `branch_answer` | AI-written — grounded in transcript |
+| 10 | TownSq Capability | `townsq_capability` | Copied verbatim from CSV |
+| 11 | Classification | `classification` | AI-written by branch-assessor-skills |
+| 12 | Assessor Notes | `assessor_notes` | AI-written by branch-assessor-skills |
+| 13 | Proximity | `proximity` | AI-written by branch-assessor-skills |
 
 ---
 
@@ -333,35 +271,35 @@ Assessment_{Branch}_Session{N}_Run{M}.xlsx
 | Failure | Cause | Fix |
 |---|---|---|
 | Response cut off mid-run | Payload too large | Batch at ≤ 20 rows |
-| `run_skill_script` timeout | Oversized payload | Reduce to 15 rows; retry |
-| `getSpreadsheetInfo` column not found | Column names vary by file | Call getSpreadsheetInfo before querying |
-| Transcript evidence missing | Single broad VTT query | Use 3–4 targeted topic-cluster queries |
+| Transcript evidence missing | Single broad query | Use 3–4 targeted topic-cluster queries |
 | 0 rows from mapping CSV | Session stored as number, queried as string | Check sample values in getSpreadsheetInfo output |
-| "HITL" appearing in Classification cell | `classification` set to `"HITL"` in row data | Set `"classification": ""` + `"hitl": true`. Never use `"HITL"` as a classification value. |
-| `outputFiles` empty after `execute_code` | Script errored silently | Check stderr and exitCode. Report and stop. |
-| render_content produces empty download | blobKey not used correctly | Use `outputFiles[0].blobKey` as content. Do not pass a base64 string. |
+| "HITL" in Classification cell | `classification` set to `"HITL"` | Set `"classification": ""` + `"hitl": true` |
+| `outputFiles` empty after `execute_code` | Script errored silently | Check stderr and exitCode. Stop. |
+| render_content produces empty download | blobKey not used correctly | Use `outputFiles[0].blobKey` as content |
 | Over-generation of FB | FB bias applied before checking integrations | Check GR-1 first |
-| Wrong context (business vs. community) | AI evaluating business-client features | Scope to HOA community management (GR-2) |
+| Wrong context | AI evaluating business-client features | Scope to HOA community management (GR-2) |
 | StrongRoom/Vantaca conflation | Treating StrongRoom as native Vantaca | Tag system of record in Source lines (GR-3) |
-| Proximity missing | Old column schema | 13 columns required; proximity is col 13 |
-| File not delivered as download link | `render_content` skipped | Call `render_content` after every successful batch |
-| Wrong data product queried | Name guessed rather than matched to convention | Confirm data product name against Section 2c before querying |
-| Wrong Dimension or Discovery Question in output | Fields derived from context instead of copied from CSV | Read dimension and discovery_question from `rubric_rows[uid]`. Run Section 3a Rule 4 gate before every batch build. |
-| TownSq Capability rewritten in output | AI paraphrased or replaced capability from search results | Read townsq_capability exclusively from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`. |
-| Branch answer addresses wrong question | Evidence not anchored to UID before extraction | Follow Step 3b. Re-read `exact_master_rubric_question` from `rubric_rows[uid]` before writing each answer. |
+| Wrong Dimension or Discovery Question | Fields derived from context instead of CSV | Read from `rubric_rows[uid]`. Run Rule 4 gate. |
+| TownSq Capability rewritten | AI paraphrased capability from search results | Read from `rubric_rows[uid]` only |
+| Branch answer addresses wrong question | Evidence not anchored to UID | Follow Step 3b |
+| Branch answer describes TownSq features | Rubric xlsx chunks used as branch evidence | Apply Step 3 Evidence Source Filter. Discard all non-transcript chunks. Valid extensions: .docx, .vtt, .md |
+| Branch answer opens with "TownSq Business supports…" | Screen-walk session — TownSq description extracted instead of branch action | Apply Step 5 Screen-Walk Split Rule. Rewrite with staff as subject. If no staff action → write Not Found |
+| Wrong data product queried | Name guessed rather than matched | Confirm name against Section 2c before querying |
 
 ---
 
 ## 7. Transcript Evidence Quality Rules
 
-- Cite speaker and timestamp for every answer (e.g., `[00:05:01–00:05:14, Kim Dunbar]`).
+- Cite speaker and timestamp for every answer.
 - Tag system of record in every Source line: `[system: native Vantaca / StrongRoom / VendorSmart / Stripe / other]`.
-- Scope to community management context. Note any business-client context mismatch.
-- Do not use the TownSq capability column as branch evidence.
+- Scope to community management context.
+- **Do not use chunks from non-transcript files as branch evidence.** Valid transcript extensions: `.docx`, `.vtt`, `.md`.
+- **Do not use the TownSq capability column as branch evidence.**
 - Synthesize only explicit statements. Do not infer.
-- `Not Found` is a valid answer. Use it when the transcript is genuinely silent.
-- Append a GAPS line when some sub-parts of a multi-part question are unanswered.
-- Anchor evidence to the specific UID question. Do not reuse evidence for a different UID's question (see Step 3b).
+- `Not Found` is valid when the transcript is genuinely silent.
+- Append a GAPS line when sub-parts of a question are unanswered.
+- Anchor evidence to the specific UID question.
+- **branch_answer is always first-person plural ("We…").** TownSq is the tool, not the subject.
 
 ---
 
@@ -369,17 +307,17 @@ Assessment_{Branch}_Session{N}_Run{M}.xlsx
 
 ```
 BRANCH: <clause from branch answer>
-TOWNSQ: <clause from TownSq capability; name system — native Vantaca / StrongRoom / VendorSmart / integration>
+TOWNSQ: <clause from TownSq capability; name system>
 DELTA: <which facets differ>
 WHY <CODE>: <one sentence>
-[Also requires: <secondary config or FB automation layer, if any>]
+[Also requires: <secondary config or FB automation layer>]
 [GR-N: <Greg-Approved Rule applied>]
 [HITL: <reason — only on blank-classification rows>]
-[RECOMMENDATION: <improvement or upsell note — if applicable>]
+[RECOMMENDATION: <improvement note>]
 Confidence: <High | Medium | Low> (<what is solid; what is not>)
 ```
 
-Write Proximity in **col 13**, not inside Assessor Notes. Do not use "non-negotiable" (GR-6).
+Write Proximity in col 13, not inside Assessor Notes. Do not use "non-negotiable" (GR-6).
 
 ---
 
@@ -400,9 +338,3 @@ Key rules: GR-1 (integration = AC), GR-2 (community context), GR-3 (systems dist
 | Run 3 | Amenity Rentals (6.12) + Audit/Tax/CPA (6.10) | 29 | TBD | TBD | TBD | TBD | TBD |
 
 Total Session 6 mapped rows: 100. Transcript: `CMA _ Financial Operations Discovery - Session 6.vtt`.
-Data product: `Vantaca - CMA - Session 6` (matches pattern `{Company} - {Branch} - Session {N}`).
-Mapping CSV: `Sessions_6_Master_Rubric_Mapping.csv`.
-
-Known pain points captured in Run 2:
-- Payment misapplication (assessment vs. reservation) — Will Stanley, 00:55:43
-- Role-based JE restriction gap — Melanie Adams, 01:18:44

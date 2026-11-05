@@ -203,8 +203,17 @@ Output `classified_rows` array: each row from `answered_rows` with `classificati
 
 Pass to `rubric-delivery-skill` for xlsx build and delivery.
 
-### Step 7 — Report
-Minimal chat output (< 5KB): counts by classification, HITL list with reasons, consistency corrections made.
+### Step 7 — Chat Report Format
+
+**For full session runs:** output a minimal summary only (< 5KB): counts by classification, HITL list with reasons, consistency corrections made.
+
+**For ad-hoc single-row classifications** (user pastes a row directly in chat): display **only** the four AI-written output fields. Never re-echo read-only input fields (Domain, Capability, Dimension, Discovery Question, TownSq Capability, etc.) — the user already provided them.
+
+Required format:
+
+| UID | Classification | Assessor Notes | Proximity |
+|---|---|---|---|
+| Q#### | PC / AC / FB / NA / *(blank)* | *(full note block)* | *(verdict)* |
 
 ---
 
@@ -253,4 +262,5 @@ Minimal chat output (< 5KB): counts by classification, HITL list with reasons, c
 - **Always name the system of record** in every TOWNSQ line.
 - **classification must be "PC", "AC", "FB", "NA", or ""** — never "HITL".
 - **Proximity must be in the proximity field** — never embedded in assessor_notes.
+- **Ad-hoc single-row chat output: show only UID, Classification, Assessor Notes, Proximity** — never re-echo input metadata.
 - **Chat output must stay < 5KB.**

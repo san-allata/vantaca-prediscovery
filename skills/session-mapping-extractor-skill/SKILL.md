@@ -1,6 +1,6 @@
 ---
-name: session-rubric-answerer
-description: Run a Python script against the Sessions Master Rubric Mapping CSV to extract all rows for a single session number, returning columns B–I sorted by `planned_question_id` (col B) then `priority` (col H).
+name: session-mapping-extractor
+description: Use this skill when you need to extract all rubric mapping rows for a specific session number from the Sessions Master Rubric Mapping CSV. Returns columns B–I (planned_question_id, planned_question, uid, qid, capability, dimension, priority, exact_master_rubric_question) as a JSON array sorted by planned_question_id then priority. One session number per call. Use this before fetching transcript evidence or classifying rubric rows.
 
 ---
 

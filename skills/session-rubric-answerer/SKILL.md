@@ -9,7 +9,7 @@ You extract branch answers from discovery session transcripts against the Associ
 
 **This skill does NOT classify rows.** Classification (PC/AC/FB/NA), assessor notes, and proximity are written by `branch-assessor-skills`. Do not write those fields here.
 
-**Before doing anything, read `references/session_processing_guide.md`.** It is the canonical operational guide. It contains the complete workflow, batching strategy, transcript fetch strategy, and all verified patterns from live runs.
+**Before doing anything, read `references/session_processing_guide.md`.** It is the canonical operational guide. It contains the complete workflow, batching strategy, transcript fetch strategy, evidence source filter, screen-walk split rule, and all verified patterns from live runs.
 
 **Also load `references/greg_approved_classifications.md` at the start of every run.** GR rules provide context for scoping answers correctly (GR-2: community management only, GR-3: system-of-record tagging).
 
@@ -17,7 +17,7 @@ You extract branch answers from discovery session transcripts against the Associ
 
 ## Reference Files
 
-- `references/session_processing_guide.md` — **Read this first.** End-to-end workflow, transcript fetch approach, verified SQL patterns, known failure modes and fixes.
+- `references/session_processing_guide.md` — **Read this first.** End-to-end workflow, transcript fetch approach, evidence source filter, screen-walk split rule, verified SQL patterns, known failure modes and fixes.
 - `references/greg_approved_classifications.md` — **Load at Step 2b.** GR-1–7 rules. Use for answer scoping context (GR-2, GR-3) only. Do not use for classification decisions.
 
 ---
@@ -46,22 +46,6 @@ These are all the fields this skill emits. Leave classification fields empty. `b
 | `proximity` | ⛔ empty string `""` | branch-assessor-skills writes this |
 | `hitl` | ⛔ `false` | branch-assessor-skills writes this |
 
-### answer_confidence definition
-
-| Level | When to use |
-|---|---|
-| `High` | Direct quote or explicit statement in transcript; speaker is unambiguous; multiple sources agree |
-| `Medium` | Clear from context but not explicitly stated; single source only; or speaker qualifies the statement |
-| `Low` | Partial evidence only; speaker speculates; inference at edge of explicit text; image-based with no text locator |
-
-### answer_has_gaps
-
-Set `true` when `branch_answer` contains a `GAPS:` line. This means the transcript did not address some sub-parts of `exact_master_rubric_question`.
-
-### answer_not_found
-
-Set `true` when `branch_answer` starts with `"Not Found"`. This means the transcript was silent on this question.
-
 ---
 
 ## Data Integrity Rules (Highest Priority)
@@ -73,67 +57,62 @@ Copy fields `uid`, `qid`, `session`, `planned_question_id`, `capability`, `dimen
 **If a CSV field is empty or null → output field is blank. Never substitute.**
 **If a CSV field was not retrieved → STOP. Re-query before proceeding.**
 
-### Build a UID Lookup Dict Immediately After Extraction
-
-```python
-rubric_rows = {row['uid']: row for row in extracted_rows}
-```
-
-Read all subsequent field values from `rubric_rows[uid]`. Do not read them from memory.
-
-### Every Answer Is Bound to Its UID
-
-`branch_answer` must respond to the `exact_master_rubric_question` for that specific UID. Before writing any answer, re-read `rubric_rows[uid]['exact_master_rubric_question']`. Confirm the transcript evidence addresses that question. Do not use evidence that addresses a different UID's question.
-
 ### TownSq Capability Is Read-Only
 
 Copy `townsq_capability` verbatim from `rubric_rows[uid]['townsq_capability_what_townsq_supports_today']`. Do not rewrite, paraphrase, or supplement it from data product search results.
 
+### Branch Answer Must Not Describe TownSq
+
+`branch_answer` answers the question *"What does the branch do today?"* — always in **first-person plural** ("We…"). TownSq is the tool the branch uses, not the subject of the answer.
+
+**Never write a branch answer that:**
+- Opens with or primarily contains a statement about what TownSq/Vantaca/C3 supports or does
+- Uses a TownSq product name as the grammatical subject of the main verb
+- Reads like a navigation instruction or feature inventory
+
+If the only available evidence is a TownSq feature description with no accompanying staff action, write:
+`"Not Found — transcript addresses this only via system demonstration; branch workflow not separately confirmed."`
+
+### Every Answer Is Bound to Its UID
+
+`branch_answer` must respond to the `exact_master_rubric_question` for that specific UID. Before writing any answer, re-read `rubric_rows[uid]['exact_master_rubric_question']`.
+
 ---
 
-## Transcript Evidence and Answer Extraction Rules
+## Evidence Source Filter (MANDATORY after every data product query)
 
-### Column C (planned_question) Is the Transcript Search Key
+After each `get_information_from_dataProduct` call, **inspect every returned chunk's source filename** and discard non-transcript chunks before using any evidence.
 
-Use `planned_question` (col C) as the primary search key to locate the relevant transcript passage. The branch's spoken response to that question is the raw evidence for `branch_answer`.
+**Valid transcript file extensions: `.docx`, `.vtt`, `.md`**
 
-Multiple rubric rows (UIDs) may share the same `planned_question`. They were answered in the same transcript segment. Extract the sub-answer relevant to each row's specific `exact_master_rubric_question` (col I).
+**Discard a chunk immediately if its source file:**
+- Has an `.xlsx` or `.csv` extension
+- Contains any of these patterns in its filename: `MasterRubric`, `plain`, `mapping`, `Associa`, `Rubric`, `Crosswalk`, `Facilitator`, `Guide`
+- Is written in third-person product-documentation style (opens with "✅", "⚠️", or a TownSq product name as the subject of a capability description)
 
-### Columns F and G Scope the Answer
+**Only use chunks whose source filename contains the branch/client name and `Session`** — e.g., `CAMS - Vantaca Prediscovery Phase 2 - Session 3.docx`, `CMA_Session6.vtt`, `Q0914-Q0943.md`.
 
-- **Column F (`capability`)** — narrows evidence to the correct business domain.
-- **Column G (`dimension`)** — narrows evidence to the correct facet within that capability. Scope a broad transcript answer to this specific dimension before writing.
+Log the filenames of retained and discarded chunks before proceeding.
 
-### Column H (priority) Governs Processing Order
+---
 
-Within each `planned_question` group, process rows P0 first, then P1, P2, P3. When evidence is limited, allocate it to higher-priority rows first. Give lower-priority rows `Not Found + GAPS` rather than a diluted answer.
+## Screen-Walk Split Rule (MANDATORY for live-demonstration sessions)
 
-### Column I (exact_master_rubric_question) Is What Gets Answered
+Many sessions involve branch staff demonstrating TownSq on screen while speaking. A single utterance simultaneously describes what TownSq does (→ `townsq_capability`) and what the branch does (→ `branch_answer`). You must split them.
 
-`branch_answer` must respond to `exact_master_rubric_question` (col I), not to `planned_question` (col C). Col C is the search key. Col I is the question to answer.
+**The test for every sentence before writing it into `branch_answer`:**
+> *"Is TownSq / the platform the grammatical subject of this sentence?"*
+> - **Yes** → Do NOT put it in `branch_answer`. Rewrite with the staff member as subject, or write Not Found.
+> - **No** → it is a branch action. It belongs in `branch_answer`.
 
-### Answer Format
+**Correct split examples:**
 
-```
-{answer in branch voice, first-person plural}
-
-Source: {file} [{timestamp}, {speaker}] [system: {system-of-record}]
-```
-
-For partial answers, append:
-```
-
-GAPS: {sub-parts of exact_master_rubric_question not addressed in the transcript}
-```
-
-For not found:
-```
-Not Found — {brief reason scoped to this dimension}
-
-Source: {file} (transcript reviewed for planned_question "{planned_question}"; this dimension not addressed)
-
-GAPS: {dimension} not discussed in this session
-```
+| Speaker says | ✅ Branch answer (staff as subject) | ❌ Never write |
+|---|---|---|
+| *"Within TownSq Business, the delivery status shows here — delivered, opened, or failed"* | *"After we send, we check the delivery status in the E-blast tab to see who got it and who didn't."* | *"TownSq Business shows delivery status: delivered/opened/failed."* |
+| *"You can see in the activity notes tab — it'll show what's occurred on the property"* | *"When a homeowner calls back, we pull up the activity notes tab to see the full history."* | *"The activity notes tab shows what occurred on the property."* |
+| *"TownSq Community requests show if opened, in-progress, or untouched"* | *"We look at open requests to see if the homeowner has opened them."* | *"TownSq Community shows request status: opened/in-progress/untouched."* |
+| *"There's no validation controls for email or phone in TownSq Business"* | *"We don't have any validation on email or phone — we repeat what the owner tells us back to them twice to confirm."* | *"TownSq Business has no validation controls for email or phone."* |
 
 ---
 
@@ -159,18 +138,19 @@ rubric_rows = {row['uid']: row for row in extracted_rows}
 ### Step 2b — Load Greg-Approved Classifications (for scoping context only)
 `read_skill_resource("references/greg_approved_classifications.md")`
 
-Use GR-2 (community management context) and GR-3 (system-of-record tagging) to scope answers. Do not apply GR rules for classification. That is branch-assessor-skills' job.
+Use GR-2 (community management context) and GR-3 (system-of-record tagging) to scope answers. Do not apply GR rules for classification.
 
 ### Step 3 — Fetch transcript evidence (batched by topic)
-Make 2–4 targeted `get_information_from_dataProduct` calls. Cover a distinct topic cluster in each call. Use `planned_question` (col C) values as search keys.
+Make 2–4 targeted `get_information_from_dataProduct` calls. After each call, **apply the Evidence Source Filter**: discard all chunks from non-transcript files (`.xlsx`, `.csv`, `MasterRubric*`, `Facilitator*`, `Guide*`). Valid transcript extensions: `.docx`, `.vtt`, `.md`. Log retained filenames.
 
 ### Step 4 — Extract branch answers (priority order, per planned_question group)
 For each `planned_question` group, process rows P0 → P1 → P2 → P3:
 1. Use `planned_question` (col C) to locate the transcript segment.
 2. Scope evidence using `capability` (col F) and `dimension` (col G).
-3. Write `branch_answer` to respond to `exact_master_rubric_question` (col I).
-4. Cite speaker, timestamp, and system tag in every Source line.
-5. Set `answer_confidence`, `answer_has_gaps`, and `answer_not_found` accurately.
+3. Apply the **Screen-Walk Split Rule**: staff member as subject, not TownSq.
+4. Write `branch_answer` to respond to `exact_master_rubric_question` (col I), in first-person plural.
+5. Cite speaker, timestamp, and system tag in every Source line.
+6. Set `answer_confidence`, `answer_has_gaps`, and `answer_not_found` accurately.
 
 ### Step 5 — Emit answered_rows JSON
 Output the complete `answered_rows` array. Leave `classification`, `assessor_notes`, `proximity`, and `hitl` as empty strings or `false`. Hand off to `branch-assessor-skills` for classification.
@@ -187,6 +167,9 @@ Output a minimal chat summary: row count, Not Found count, partial (GAPS) count,
 - Do not call any script at startup or before the user provides session data.
 - Do not derive any metadata field. Copy it verbatim from `rubric_rows[uid]`. If a field was not retrieved, re-query before proceeding.
 - Do not use a branch answer written for one UID for a different UID.
+- **Discard all non-transcript evidence chunks** (xlsx, csv, MasterRubric*, Facilitator*, Guide* filenames) before writing any answer. Valid transcript extensions: `.docx`, `.vtt`, `.md`.
+- **Apply the Screen-Walk Split Rule for every answer**: if TownSq is the grammatical subject → rewrite with staff as subject or write Not Found.
+- **branch_answer is always first-person plural ("We…")** — never a TownSq feature description.
 - Use `planned_question` (col C) as the transcript search key. Do not use `exact_master_rubric_question` (col I) as a search query.
 - Use `capability` (col F) and `dimension` (col G) to scope every answer.
 - Process rows in priority order (P0 first) within each planned_question group.

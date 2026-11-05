@@ -11,6 +11,41 @@ This sandbox (execute_code, bash/python/node) is **offline** — no network acce
 ## Rule
 **Prefer a verified-available command or a short Python one-liner over inventing a new persistent script.** Do not create new skill scripts for one-off text/data manipulation that a single shell command or Python stdlib call can do. Reserve real scripts (added via `add_skill_resource`/`update_skill_resource`) for logic that is reused across many runs (e.g. the session-scope resolver, the xlsx patcher).
 
+---
+
+## Output Handling Rules
+
+### 1. Large Text Output → Compress + Save as File
+Whenever a command is expected to produce a **high volume of text output** (e.g. log dumps, large `cat` outputs, verbose tool output), **do NOT let stdout flood the response**. Instead:
+
+```bash
+<command> 2>/dev/null | gzip -9c > output.txt.gz
+```
+
+Then let the sandbox capture `output.txt.gz` as a download file. This avoids truncation, token waste, and illegible walls of text in the chat.
+
+### 2. Multi-line Bash Input → Use HEREDOCs
+When passing a **multi-line bash script** to execute_code, always use a HEREDOC to keep it readable and avoid quoting nightmares:
+
+```bash
+cat << '__EOF__'
+for f in /etc/*.conf; do
+  echo "=== $f ==="
+  cat "$f"
+done
+__EOF__
+```
+
+Use `'__EOF__'` (single-quoted) to prevent variable expansion by the outer shell. Use unquoted `__EOF__` only when you intentionally need variable interpolation.
+
+**When to prefer HEREDOC over inline code:**
+- The script has 3+ lines
+- The script contains nested quotes, special characters, or `$variables`
+- The script defines functions or uses loops/conditionals
+- The command would otherwise require heavy escaping
+
+---
+
 ## Verified AVAILABLE (safe to use directly)
 | Command | Notes |
 |---|---|
@@ -34,7 +69,24 @@ This sandbox (execute_code, bash/python/node) is **offline** — no network acce
 | `patch` | Use Python to read, transform, and rewrite the target file directly instead of generating/applying a diff patch file. |
 | `xmllint`, `xsltproc` | Use Python's `lxml` (pre-installed) or `xml.etree.ElementTree` for any raw XML inspection (e.g. checking `hidden="1"` in sheet XML inside an xlsx). |
 
-## Practical recipes for this environment
+---
+
+## Practical Recipes
+
+**Python script that produces large output → compressed file:**
+```bash
+python3 some_script.py input.json | gzip -9c > executables.txt.gz
+```
+
+**Multi-line script via HEREDOC:**
+```bash
+cat << '__EOF__'
+for f in /etc/*.conf; do
+  echo "=== $f ==="
+  cat "$f"
+done
+__EOF__
+```
 
 **Filter/search JSON without jq:**
 ```python
@@ -57,11 +109,15 @@ with zipfile.ZipFile("workbook.xlsx") as z:
 **Query a spreadsheet-like structure without sqlite3 CLI:**
 Use the platform's `executeQuery`/`getSpreadsheetInfo` tools directly (they already run against a parquet-backed engine) — never shell out to a `sqlite3` binary for this.
 
+---
+
 ## Validation Checklist
 - [ ] Before running a shell command, it appears in the AVAILABLE table above, or is a plain POSIX builtin (`cd`, `echo`, `cat`, etc.)
 - [ ] No step assumes network access (no `pip install`, `npm install` of new packages, `curl`/`wget` to an external host, cloning a repo)
 - [ ] No step shells out to `jq`, `sqlite3`, `unzip`/`zip`, `libreoffice`/`soffice`, `wget`, `patch`, `xmllint`/`xsltproc` — a Python substitute from this file is used instead
 - [ ] A new ad-hoc script is created only when the logic will be reused across runs — otherwise inline Python/bash via execute_code is used and discarded
+- [ ] High-volume text output is piped through `| gzip -9c > output.gz` and offered as a download, not printed to stdout
+- [ ] Multi-line bash scripts (3+ lines, nested quotes, loops) use a HEREDOC (`cmd << 'EOF' ... EOF`) instead of inline escaped strings
 
 ## Troubleshooting
 - If a command returns "command not found", it is very likely one of the "NOT AVAILABLE" entries above — check the substitute rather than retrying or installing.
